@@ -7,8 +7,9 @@ export const runsRoute = new Hono()
 
 runsRoute.get('/api/runs', async (c) => {
   const limit = Math.min(Number(c.req.query('limit') ?? 20), 100)
+  const projectId = c.req.query('projectId')
 
-  const rows = db
+  let query = db
     .select({
       id: runs.id,
       goalId: runs.goalId,
@@ -16,15 +17,19 @@ runsRoute.get('/api/runs', async (c) => {
       skillId: runs.skillId,
       model: runs.model,
       status: runs.status,
+      projectId: runs.projectId,
       createdAt: runs.createdAt,
     })
     .from(runs)
     .leftJoin(goals, eq(runs.goalId, goals.id))
     .orderBy(desc(runs.createdAt))
     .limit(limit)
-    .all()
 
-  return c.json(rows)
+  if (projectId) {
+    query = query.where(eq(runs.projectId, projectId)) as typeof query
+  }
+
+  return c.json(query.all())
 })
 
 runsRoute.get('/api/runs/:id', async (c) => {

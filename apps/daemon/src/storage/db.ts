@@ -4,6 +4,8 @@ import { existsSync, mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import * as schema from './schema'
 
+export const DEFAULT_PROJECT_ID = 'default'
+
 const DB_PATH = '.workspace/app.sqlite'
 
 if (!existsSync(dirname(DB_PATH))) {
@@ -17,10 +19,18 @@ sqlite.pragma('foreign_keys = ON')
 export const db = drizzle(sqlite, { schema })
 
 const INIT_SQL = `
+  CREATE TABLE IF NOT EXISTS projects (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS goals (
     id TEXT PRIMARY KEY,
     content TEXT NOT NULL,
     skill_id TEXT,
+    project_id TEXT,
     created_at TEXT NOT NULL
   );
   CREATE TABLE IF NOT EXISTS runs (
@@ -29,6 +39,7 @@ const INIT_SQL = `
     skill_id TEXT,
     model TEXT,
     status TEXT NOT NULL,
+    project_id TEXT,
     created_at TEXT NOT NULL
   );
   CREATE TABLE IF NOT EXISTS messages (
@@ -47,7 +58,19 @@ const INIT_SQL = `
     content TEXT NOT NULL,
     parent_artifact_id TEXT,
     version INTEGER DEFAULT 1,
+    project_id TEXT,
     created_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS files (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    path TEXT NOT NULL,
+    mime_type TEXT,
+    size INTEGER NOT NULL,
+    content_text TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
   );
 `
 
@@ -57,8 +80,18 @@ sqlite.exec(INIT_SQL)
 const migrations = [
   `ALTER TABLE artifacts ADD COLUMN parent_artifact_id TEXT`,
   `ALTER TABLE artifacts ADD COLUMN version INTEGER DEFAULT 1`,
+  `ALTER TABLE goals ADD COLUMN project_id TEXT`,
+  `ALTER TABLE runs ADD COLUMN project_id TEXT`,
+  `ALTER TABLE artifacts ADD COLUMN project_id TEXT`,
 ]
 
 for (const sql of migrations) {
   try { sqlite.exec(sql) } catch { /* column already exists */ }
 }
+
+// Ensure default project exists
+const now = new Date().toISOString()
+const insertDefault = sqlite.prepare(
+  `INSERT OR IGNORE INTO projects (id, name, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`
+)
+insertDefault.run(DEFAULT_PROJECT_ID, 'Default Project', 'Default workspace for artifacts', now, now)

@@ -4,13 +4,16 @@ import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { loadSkills } from '../skills/skill-loader'
 import { runAgent, type SaveRunData } from '../agent/run-agent'
-import { db } from '../storage/db'
-import { goals, runs, messages, artifacts } from '../storage/schema'
+import { db, DEFAULT_PROJECT_ID } from '../storage/db'
+import { goals, runs, messages, artifacts, files } from '../storage/schema'
+import { eq } from 'drizzle-orm'
 
 const RunRequestSchema = z.object({
   goal: z.string().min(1).max(8000),
   skillId: z.string().min(1).max(100).optional(),
   model: z.string().max(100).optional(),
+  projectId: z.string().max(200).optional(),
+  fileIds: z.array(z.string().max(200)).max(10).optional(),
 })
 
 export const runRoute = new Hono()
@@ -26,6 +29,7 @@ runRoute.post('/api/run', async (c) => {
   const skills = await loadSkills()
   const skill = body.skillId ? skills.find(s => s.id === body.skillId) : undefined
   const model = body.model ?? process.env.PROVIDER_DEFAULT_MODEL ?? 'gpt-4.1'
+  const projectId = body.projectId ?? DEFAULT_PROJECT_ID
 
   const goalId = randomUUID()
   const runId = randomUUID()
@@ -35,6 +39,7 @@ runRoute.post('/api/run', async (c) => {
     id: goalId,
     content: body.goal,
     skillId: body.skillId,
+    projectId,
     createdAt: now,
   }
 
@@ -56,6 +61,7 @@ runRoute.post('/api/run', async (c) => {
       skillId: data.skillId,
       model: data.model,
       status: data.artifacts.length > 0 ? 'completed' : 'error',
+      projectId,
       createdAt: now,
     }).run()
 
@@ -77,8 +83,22 @@ runRoute.post('/api/run', async (c) => {
         type: artifact.type,
         title: artifact.title,
         content: artifact.content,
+        projectId,
         createdAt: artifact.createdAt,
       }).run()
+    }
+  }
+
+  // Load file context if fileIds provided
+  let fileContext: string | undefined
+  if (body.fileIds && body.fileIds.length > 0) {
+    const fileRows = db.select({ id: files.id, name: files.name, contentText: files.contentText }).from(files)
+      .where(eq(files.projectId, projectId))
+      .all()
+      .filter(f => body.fileIds!.includes(f.id) && f.contentText)
+
+    if (fileRows.length > 0) {
+      fileContext = '# File Context\n\n' + fileRows.map(f => `## 文件：${f.name}\n\`\`\`text\n${f.contentText}\n\`\`\`\n`).join('\n---\n\n')
     }
   }
 
@@ -89,6 +109,7 @@ runRoute.post('/api/run', async (c) => {
       model,
       providerConfig,
       saveRun,
+      fileContext,
     })) {
       let data: Record<string, unknown>
       switch (event.type) {

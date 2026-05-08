@@ -4,7 +4,7 @@ import { eq, desc } from 'drizzle-orm'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { db } from '../storage/db'
-import { artifacts, goals, runs, messages as messagesTable } from '../storage/schema'
+import { artifacts, goals, runs, messages as messagesTable, files } from '../storage/schema'
 import { loadSkills } from '../skills/skill-loader'
 import { runRefine } from '../agent/run-agent'
 import type { Artifact } from '@agent-workspace/contracts'
@@ -12,27 +12,33 @@ import type { Artifact } from '@agent-workspace/contracts'
 const RefineRequestSchema = z.object({
   instruction: z.string().min(1).max(4000),
   skillId: z.string().min(1).max(100).optional(),
+  fileIds: z.array(z.string().max(200)).max(10).optional(),
 })
 
 export const artifactsRoute = new Hono()
 
 artifactsRoute.get('/api/artifacts', async (c) => {
   const limit = Math.min(Number(c.req.query('limit') ?? 50), 200)
+  const projectId = c.req.query('projectId')
 
-  const rows = db
+  let query = db
     .select({
       id: artifacts.id,
       goalId: artifacts.goalId,
       type: artifacts.type,
       title: artifacts.title,
+      projectId: artifacts.projectId,
       createdAt: artifacts.createdAt,
     })
     .from(artifacts)
     .orderBy(desc(artifacts.createdAt))
     .limit(limit)
-    .all()
 
-  return c.json(rows)
+  if (projectId) {
+    query = query.where(eq(artifacts.projectId, projectId)) as typeof query
+  }
+
+  return c.json(query.all())
 })
 
 artifactsRoute.get('/api/artifacts/:id', async (c) => {
@@ -98,7 +104,7 @@ artifactsRoute.post('/api/artifacts/:id/refine', async (c) => {
   const now = new Date().toISOString()
 
   const saveRun = async (data: { goal: { id: string; content: string; createdAt: string }; model: string; skillId?: string; messages: Array<{ role: string; content: string }>; artifacts: Array<{ id: string; type: string; title: string; content: string; parentArtifactId?: string; version?: number; createdAt: string }> }) => {
-    db.insert(goals).values({ id: data.goal.id, content: data.goal.content, createdAt: data.goal.createdAt }).run()
+    db.insert(goals).values({ id: data.goal.id, content: data.goal.content, projectId: original.projectId, createdAt: data.goal.createdAt }).run()
 
     db.insert(runs).values({
       id: runId,
@@ -106,6 +112,7 @@ artifactsRoute.post('/api/artifacts/:id/refine', async (c) => {
       skillId: data.skillId,
       model: data.model,
       status: data.artifacts.length > 0 ? 'completed' : 'error',
+      projectId: original.projectId,
       createdAt: now,
     }).run()
 
@@ -123,8 +130,22 @@ artifactsRoute.post('/api/artifacts/:id/refine', async (c) => {
         content: artifact.content,
         parentArtifactId: artifact.parentArtifactId,
         version: artifact.version,
+        projectId: original.projectId,
         createdAt: artifact.createdAt,
       }).run()
+    }
+  }
+
+  // Load file context if fileIds provided
+  let fileContext: string | undefined
+  if (body.fileIds && body.fileIds.length > 0) {
+    const fileRows = db.select({ id: files.id, name: files.name, contentText: files.contentText }).from(files)
+      .where(eq(files.projectId, original.projectId ?? ''))
+      .all()
+      .filter(f => body.fileIds!.includes(f.id) && f.contentText)
+
+    if (fileRows.length > 0) {
+      fileContext = '# File Context\n\n' + fileRows.map(f => `## 文件：${f.name}\n\`\`\`text\n${f.contentText}\n\`\`\`\n`).join('\n---\n\n')
     }
   }
 
@@ -136,6 +157,7 @@ artifactsRoute.post('/api/artifacts/:id/refine', async (c) => {
       model,
       providerConfig,
       saveRun,
+      fileContext,
     })) {
       let data: Record<string, unknown>
       switch (event.type) {

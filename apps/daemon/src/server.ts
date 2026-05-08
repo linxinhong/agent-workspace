@@ -8,12 +8,16 @@ import { skillsRoute } from './routes/skills'
 import { artifactsRoute } from './routes/artifacts'
 import { runRoute } from './routes/run'
 import { runsRoute } from './routes/runs'
+import { projectsRoute } from './routes/projects'
+import { filesRoute } from './routes/files'
 
 const app = new Hono()
 
 app.use('/api/*', cors())
 
 app.route('/', skillsRoute)
+app.route('/', projectsRoute)
+app.route('/', filesRoute)
 app.route('/', artifactsRoute)
 app.route('/', runRoute)
 app.route('/', runsRoute)
