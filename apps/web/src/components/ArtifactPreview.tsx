@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useWorkspace } from '../context/WorkspaceContext'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { HtmlSandbox } from './HtmlSandbox'
+import { copyToClipboard, downloadArtifact } from '../utils/artifact-export'
 import type { Artifact } from '@agent-workspace/contracts'
 
 function ArtifactView({ artifact }: { artifact: Artifact }) {
@@ -25,6 +26,7 @@ export function ArtifactPreview() {
   const [activeIndex, setActiveIndex] = useState(0)
   const [showRefine, setShowRefine] = useState(false)
   const [refineInput, setRefineInput] = useState('')
+  const [copied, setCopied] = useState(false)
 
   const current = state.activeArtifact
     ?? (state.artifacts.length > 0 ? state.artifacts[activeIndex] ?? state.artifacts[0] : null)
@@ -35,6 +37,18 @@ export function ArtifactPreview() {
         Artifact 将在这里预览
       </div>
     )
+  }
+
+  const handleCopy = async () => {
+    const ok = await copyToClipboard(current!.content)
+    if (ok) {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    }
+  }
+
+  const handleDownload = () => {
+    downloadArtifact(current!)
   }
 
   const handleRefine = () => {
@@ -48,26 +62,56 @@ export function ArtifactPreview() {
   const activeInChain = versionChain.length > 0
     ? versionChain.findIndex(v => v.id === current.id)
     : -1
+  const versionNum = activeInChain >= 0 ? activeInChain + 1 : (current.version ?? 1)
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      {state.activeArtifact && (
-        <div className="flex items-center gap-2 px-3 py-1.5 border-b bg-gray-50">
-          <span className="text-xs text-gray-500">历史 Artifact</span>
-          <button
-            onClick={() => dispatch({ type: 'SET_ACTIVE_ARTIFACT', artifact: null })}
-            className="text-xs text-blue-600 hover:text-blue-800"
-          >
-            关闭
-          </button>
-        </div>
-      )}
+      {/* Toolbar */}
+      <div className="h-10 border-b flex items-center px-3 gap-2 shrink-0">
+        <span className="text-sm font-medium text-gray-700 truncate">{current.title}</span>
+        <span className="text-xs text-gray-400">·</span>
+        <span className="text-xs text-gray-400">{current.type}</span>
+        <span className="text-xs text-gray-400">·</span>
+        <span className="text-xs text-gray-400">v{versionNum}</span>
 
+        <div className="ml-auto flex items-center gap-1">
+          <button
+            onClick={handleCopy}
+            className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded hover:border-gray-300"
+          >
+            {copied ? '已复制' : 'Copy'}
+          </button>
+          <button
+            onClick={handleDownload}
+            className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded hover:border-gray-300"
+          >
+            Download
+          </button>
+          {!showRefine && (
+            <button
+              onClick={() => setShowRefine(true)}
+              className="px-2 py-1 text-xs text-blue-600 hover:text-blue-800 border border-blue-200 rounded hover:border-blue-300"
+            >
+              Refine
+            </button>
+          )}
+          {state.activeArtifact && (
+            <button
+              onClick={() => dispatch({ type: 'SET_ACTIVE_ARTIFACT', artifact: null })}
+              className="px-2 py-1 text-xs text-gray-400 hover:text-gray-600"
+            >
+              &times;
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Version chain */}
       {versionChain.length > 1 && (
         <div className="flex items-center gap-1 px-3 py-1.5 border-b overflow-x-auto">
           {versionChain.map((v, i) => (
             <span key={v.id} className="flex items-center gap-1">
-              {i > 0 && <span className="text-gray-300 text-xs">→</span>}
+              {i > 0 && <span className="text-gray-300 text-xs">&rarr;</span>}
               <button
                 onClick={() => openArtifact(v.id)}
                 className={`text-xs px-1.5 py-0.5 rounded ${
@@ -101,12 +145,14 @@ export function ArtifactPreview() {
         </div>
       )}
 
+      {/* Content */}
       <div className="flex-1 overflow-hidden">
         <ArtifactView artifact={current} />
       </div>
 
-      <div className="border-t px-3 py-2">
-        {showRefine ? (
+      {/* Refine input */}
+      {showRefine && (
+        <div className="border-t px-3 py-2">
           <div className="flex gap-2">
             <input
               type="text"
@@ -132,15 +178,8 @@ export function ArtifactPreview() {
               取消
             </button>
           </div>
-        ) : (
-          <button
-            onClick={() => setShowRefine(true)}
-            className="text-sm text-blue-600 hover:text-blue-800"
-          >
-            继续修改
-          </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }

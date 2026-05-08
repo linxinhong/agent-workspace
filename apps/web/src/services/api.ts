@@ -101,6 +101,10 @@ export async function fetchArtifact(id: string): Promise<Artifact> {
   return res.json()
 }
 
+export function getArtifactExportUrl(id: string): string {
+  return `/api/artifacts/${id}/export`
+}
+
 export async function fetchArtifactVersions(id: string): Promise<Artifact[]> {
   const res = await fetch(`/api/artifacts/${id}/versions`)
   return res.json()

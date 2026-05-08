@@ -74,6 +74,30 @@ artifactsRoute.get('/api/artifacts/:id/versions', async (c) => {
   return c.json(chain)
 })
 
+const EXPORT_EXT: Record<string, string> = {
+  markdown: '.md', html: '.html', json: '.json', mermaid: '.mmd', react: '.tsx',
+}
+const EXPORT_MIME: Record<string, string> = {
+  markdown: 'text/markdown', html: 'text/html', json: 'application/json', mermaid: 'text/plain', react: 'text/plain',
+}
+const SANITIZE_RE = /[<>:"/\\|?*\x00-\x1f]/g
+
+artifactsRoute.get('/api/artifacts/:id/export', async (c) => {
+  const id = c.req.param('id')
+  const artifact = db.select().from(artifacts).where(eq(artifacts.id, id)).get()
+  if (!artifact) return c.json({ error: 'Artifact not found' }, 404)
+
+  const ext = EXPORT_EXT[artifact.type] ?? '.txt'
+  const mime = EXPORT_MIME[artifact.type] ?? 'text/plain'
+  const filename = (artifact.title ?? 'artifact').replace(SANITIZE_RE, '').replace(/\s+/g, '_').slice(0, 100) || 'artifact'
+  const full = filename + ext
+
+  return c.body(artifact.content, 200, {
+    'Content-Type': mime + '; charset=utf-8',
+    'Content-Disposition': `attachment; filename="${full}"`,
+  })
+})
+
 artifactsRoute.post('/api/artifacts/:id/refine', async (c) => {
   const id = c.req.param('id')
   const raw = await c.req.json()
