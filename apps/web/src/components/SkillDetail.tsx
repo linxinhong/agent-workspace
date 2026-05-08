@@ -7,7 +7,7 @@ export function SkillDetail() {
   if (!detail) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => dispatch({ type: 'SET_ACTIVE_SKILL_DETAIL', detail: null })}>
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30" onClick={() => dispatch({ type: 'SET_ACTIVE_SKILL_DETAIL', detail: null })}>
       <div className="bg-white rounded-xl shadow-xl w-[640px] max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="px-5 py-4 border-b flex items-center justify-between">
           <div>

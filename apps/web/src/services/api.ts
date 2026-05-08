@@ -110,6 +110,20 @@ export async function fetchArtifactVersions(id: string): Promise<Artifact[]> {
   return res.json()
 }
 
+export async function createArtifactVersion(id: string, data: {
+  content: string
+  title?: string
+  changeNote?: string
+}): Promise<Artifact> {
+  const res = await fetch(`/api/artifacts/${id}/versions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) { const err = await res.json(); throw new Error(err.error ?? `HTTP ${res.status}`) }
+  return res.json()
+}
+
 export async function fetchRuns(opts: { limit?: number; projectId?: string } = {}): Promise<RunSummary[]> {
   const params = new URLSearchParams()
   params.set('limit', String(opts.limit ?? 20))

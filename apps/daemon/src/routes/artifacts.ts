@@ -98,6 +98,56 @@ artifactsRoute.get('/api/artifacts/:id/export', async (c) => {
   })
 })
 
+const CreateVersionSchema = z.object({
+  content: z.string().min(1),
+  title: z.string().min(1).max(500).optional(),
+  changeNote: z.string().max(1000).optional(),
+})
+
+artifactsRoute.post('/api/artifacts/:id/versions', async (c) => {
+  const id = c.req.param('id')
+  const raw = await c.req.json()
+  const parsed = CreateVersionSchema.safeParse(raw)
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues.map(i => i.message).join(', ') }, 400)
+  }
+  const body = parsed.data
+
+  const original = db.select().from(artifacts).where(eq(artifacts.id, id)).get()
+  if (!original) return c.json({ error: 'Artifact not found' }, 404)
+
+  // Count existing versions in chain
+  let versionCount = 1
+  let cur = original
+  while (cur.parentArtifactId) {
+    const parent = db.select().from(artifacts).where(eq(artifacts.id, cur.parentArtifactId)).get()
+    if (!parent) break
+    versionCount++
+    cur = parent
+  }
+
+  const newId = randomUUID()
+  const now = new Date().toISOString()
+  const newVersion = versionCount + 1
+
+  db.insert(artifacts).values({
+    id: newId,
+    runId: original.runId,
+    goalId: original.goalId,
+    type: original.type,
+    title: body.title ?? original.title,
+    content: body.content,
+    parentArtifactId: id,
+    version: newVersion,
+    changeNote: body.changeNote,
+    projectId: original.projectId,
+    createdAt: now,
+  }).run()
+
+  const result = db.select().from(artifacts).where(eq(artifacts.id, newId)).get()
+  return c.json(result, 201)
+})
+
 artifactsRoute.post('/api/artifacts/:id/refine', async (c) => {
   const id = c.req.param('id')
   const raw = await c.req.json()

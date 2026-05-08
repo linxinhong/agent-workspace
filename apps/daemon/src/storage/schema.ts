@@ -43,6 +43,7 @@ export const artifacts = sqliteTable('artifacts', {
   content: text('content').notNull(),
   parentArtifactId: text('parent_artifact_id'),
   version: integer('version').default(1),
+  changeNote: text('change_note'),
   projectId: text('project_id'),
   createdAt: text('created_at').notNull(),
 })

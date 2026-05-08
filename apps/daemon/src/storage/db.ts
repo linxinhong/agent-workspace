@@ -83,6 +83,7 @@ const migrations = [
   `ALTER TABLE goals ADD COLUMN project_id TEXT`,
   `ALTER TABLE runs ADD COLUMN project_id TEXT`,
   `ALTER TABLE artifacts ADD COLUMN project_id TEXT`,
+  `ALTER TABLE artifacts ADD COLUMN change_note TEXT`,
 ]
 
 for (const sql of migrations) {

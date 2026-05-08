@@ -14,6 +14,7 @@ export function PromptDebugger() {
 
   const handleClose = () => {
     dispatch({ type: 'SET_DEBUG_MESSAGES', messages: null })
+    dispatch({ type: 'SET_ACTIVE_SKILL_DETAIL', detail: null })
   }
 
   return (

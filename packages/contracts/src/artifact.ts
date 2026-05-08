@@ -12,6 +12,7 @@ export interface Artifact {
   content: string
   parentArtifactId?: string
   version?: number
+  changeNote?: string
   createdAt: string
 }
 
