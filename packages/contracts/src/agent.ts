@@ -1,0 +1,26 @@
+import type { UserGoal } from './goal'
+import type { Skill } from './skill'
+import type { Artifact } from './artifact'
+
+export interface AgentProvider {
+  run(input: AgentProviderInput): AsyncIterable<string>
+}
+
+export interface AgentProviderInput {
+  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
+  model: string
+}
+
+export interface AgentRunInput {
+  goal: UserGoal
+  skill?: Skill
+  provider: AgentProvider
+  model?: string
+}
+
+export type AgentEvent =
+  | { type: 'start'; goalId: string }
+  | { type: 'delta'; content: string }
+  | { type: 'artifact'; artifact: Artifact }
+  | { type: 'error'; error: string }
+  | { type: 'done' }

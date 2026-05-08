@@ -1,0 +1,23 @@
+{
+  "name": "daemon",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@agent-workspace/contracts": "workspace:*",
+    "@hono/node-server": "^1.14.0",
+    "better-sqlite3": "^11.9.1",
+    "dotenv": "^16.5.0",
+    "drizzle-orm": "^0.44.0",
+    "gray-matter": "^4.0.3",
+    "hono": "^4.7.9",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13"
+  }
+}
