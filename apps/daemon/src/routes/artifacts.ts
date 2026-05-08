@@ -4,8 +4,9 @@ import { eq, desc } from 'drizzle-orm'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { db } from '../storage/db'
-import { artifacts, goals, runs, messages as messagesTable, files } from '../storage/schema'
+import { artifacts, goals, runs, messages as messagesTable } from '../storage/schema'
 import { loadSkills } from '../skills/skill-loader'
+import { buildFileContext } from '../skills/file-context'
 import { runRefine } from '../agent/run-agent'
 import type { Artifact } from '@agent-workspace/contracts'
 
@@ -137,17 +138,9 @@ artifactsRoute.post('/api/artifacts/:id/refine', async (c) => {
   }
 
   // Load file context if fileIds provided
-  let fileContext: string | undefined
-  if (body.fileIds && body.fileIds.length > 0) {
-    const fileRows = db.select({ id: files.id, name: files.name, contentText: files.contentText }).from(files)
-      .where(eq(files.projectId, original.projectId ?? ''))
-      .all()
-      .filter(f => body.fileIds!.includes(f.id) && f.contentText)
-
-    if (fileRows.length > 0) {
-      fileContext = '# File Context\n\n' + fileRows.map(f => `## 文件：${f.name}\n\`\`\`text\n${f.contentText}\n\`\`\`\n`).join('\n---\n\n')
-    }
-  }
+  const fileContext = (body.fileIds && body.fileIds.length > 0)
+    ? buildFileContext(body.fileIds, original.projectId ?? '')
+    : undefined
 
   return streamSSE(c, async (stream) => {
     for await (const event of runRefine({

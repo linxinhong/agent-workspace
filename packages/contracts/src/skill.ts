@@ -7,3 +7,13 @@ export interface Skill {
   instruction: string
   outputTypes: ArtifactType[]
 }
+
+export interface SkillWarning {
+  type: 'missing_section' | 'missing_output_types'
+  message: string
+}
+
+export interface SkillDetail extends Skill {
+  path?: string
+  warnings: SkillWarning[]
+}

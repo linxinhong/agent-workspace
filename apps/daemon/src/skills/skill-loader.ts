@@ -3,7 +3,7 @@ import type { Dirent } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import matter from 'gray-matter'
-import type { Skill, ArtifactType } from '@agent-workspace/contracts'
+import type { Skill, SkillWarning, ArtifactType } from '@agent-workspace/contracts'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = resolve(__filename, '..')
@@ -50,4 +50,22 @@ export async function loadSkills(basePath?: string): Promise<Skill[]> {
 
 export function invalidateSkillCache(): void {
   cached = null
+}
+
+export function validateSkill(skill: Skill): SkillWarning[] {
+  const warnings: SkillWarning[] = []
+  const text = skill.instruction.toLowerCase()
+
+  for (const section of ['output contract'] as const) {
+    if (!text.includes(section))
+      warnings.push({ type: 'missing_section', message: `缺少 "${section}" 章节` })
+  }
+  for (const section of ['role', 'goal', 'workflow', 'constraints'] as const) {
+    if (!text.includes(section))
+      warnings.push({ type: 'missing_section', message: `建议添加 "${section}" 章节` })
+  }
+  if (!skill.outputTypes || skill.outputTypes.length === 0)
+    warnings.push({ type: 'missing_output_types', message: '未定义输出类型' })
+
+  return warnings
 }

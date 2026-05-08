@@ -5,8 +5,8 @@ import { z } from 'zod'
 import { loadSkills } from '../skills/skill-loader'
 import { runAgent, type SaveRunData } from '../agent/run-agent'
 import { db, DEFAULT_PROJECT_ID } from '../storage/db'
-import { goals, runs, messages, artifacts, files } from '../storage/schema'
-import { eq } from 'drizzle-orm'
+import { goals, runs, messages, artifacts } from '../storage/schema'
+import { buildFileContext } from '../skills/file-context'
 
 const RunRequestSchema = z.object({
   goal: z.string().min(1).max(8000),
@@ -90,17 +90,9 @@ runRoute.post('/api/run', async (c) => {
   }
 
   // Load file context if fileIds provided
-  let fileContext: string | undefined
-  if (body.fileIds && body.fileIds.length > 0) {
-    const fileRows = db.select({ id: files.id, name: files.name, contentText: files.contentText }).from(files)
-      .where(eq(files.projectId, projectId))
-      .all()
-      .filter(f => body.fileIds!.includes(f.id) && f.contentText)
-
-    if (fileRows.length > 0) {
-      fileContext = '# File Context\n\n' + fileRows.map(f => `## 文件：${f.name}\n\`\`\`text\n${f.contentText}\n\`\`\`\n`).join('\n---\n\n')
-    }
-  }
+  const fileContext = (body.fileIds && body.fileIds.length > 0)
+    ? buildFileContext(body.fileIds, projectId)
+    : undefined
 
   return streamSSE(c, async (stream) => {
     for await (const event of runAgent({

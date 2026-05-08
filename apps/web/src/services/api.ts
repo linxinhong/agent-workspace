@@ -1,10 +1,11 @@
-import type { Artifact, ArtifactType, ArtifactSummary, Project, WorkspaceFile } from '@agent-workspace/contracts'
+import type { Artifact, ArtifactType, ArtifactSummary, Project, SkillDetail, SkillWarning, WorkspaceFile } from '@agent-workspace/contracts'
 
 export interface SkillBrief {
   id: string
   name: string
   description?: string
   outputTypes: ArtifactType[]
+  warningCount: number
 }
 
 export interface RunEvent {
@@ -175,4 +176,30 @@ export async function refineArtifactStream(input: {
   }
 
   await consumeSSE(res, input.onEvent)
+}
+
+export async function fetchSkillDetail(id: string): Promise<SkillDetail> {
+  const res = await fetch(`/api/skills/${id}`)
+  if (!res.ok) throw new Error('Skill not found')
+  return res.json()
+}
+
+export async function reloadSkills(): Promise<{ count: number }> {
+  const res = await fetch('/api/skills/reload', { method: 'POST' })
+  return res.json()
+}
+
+export async function fetchDebugPrompt(params: {
+  goal: string
+  skillId?: string
+  projectId?: string
+  fileIds?: string[]
+}): Promise<{ messages: Array<{ role: string; content: string }> }> {
+  const res = await fetch('/api/debug/prompt', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+  if (!res.ok) { const err = await res.json(); throw new Error(err.error ?? `HTTP ${res.status}`) }
+  return res.json()
 }

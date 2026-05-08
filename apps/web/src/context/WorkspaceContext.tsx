@@ -1,9 +1,9 @@
 import { createContext, useContext, useReducer, type ReactNode } from 'react'
-import type { Artifact, ArtifactSummary, Project, WorkspaceFile } from '@agent-workspace/contracts'
+import type { Artifact, ArtifactSummary, Project, SkillDetail, WorkspaceFile } from '@agent-workspace/contracts'
 import {
   fetchSkills, fetchArtifact, fetchArtifactSummaries, fetchRuns, fetchArtifactVersions,
   runAgentStream, refineArtifactStream, fetchProjects, createProject, deleteProject, fetchProjectDetail,
-  fetchProjectFiles,
+  fetchProjectFiles, fetchSkillDetail, reloadSkills as reloadSkillsApi, fetchDebugPrompt,
   type RunEvent, type RunSummary, type SkillBrief, type ProjectDetail,
 } from '../services/api'
 
@@ -28,6 +28,8 @@ interface State {
   currentProjectDetail: ProjectDetail | null
   projectFiles: WorkspaceFile[]
   selectedFileIds: string[]
+  activeSkillDetail: SkillDetail | null
+  debugMessages: Array<{ role: string; content: string }> | null
 }
 
 type Action =
@@ -54,6 +56,8 @@ type Action =
   | { type: 'REMOVE_FILE'; fileId: string }
   | { type: 'TOGGLE_FILE_SELECTION'; fileId: string }
   | { type: 'CLEAR_FILE_SELECTION' }
+  | { type: 'SET_ACTIVE_SKILL_DETAIL'; detail: SkillDetail | null }
+  | { type: 'SET_DEBUG_MESSAGES'; messages: Array<{ role: string; content: string }> | null }
 
 const initialState: State = {
   skills: [], selectedSkillId: null, goal: '', messages: [], artifacts: [],
@@ -62,6 +66,8 @@ const initialState: State = {
   currentProjectDetail: null,
   projectFiles: [],
   selectedFileIds: [],
+  activeSkillDetail: null,
+  debugMessages: null,
 }
 
 function reducer(state: State, action: Action): State {
@@ -106,6 +112,8 @@ function reducer(state: State, action: Action): State {
       return { ...state, selectedFileIds: ids }
     }
     case 'CLEAR_FILE_SELECTION': return { ...state, selectedFileIds: [] }
+    case 'SET_ACTIVE_SKILL_DETAIL': return { ...state, activeSkillDetail: action.detail }
+    case 'SET_DEBUG_MESSAGES': return { ...state, debugMessages: action.messages }
   }
 }
 
@@ -124,6 +132,9 @@ interface WorkspaceContextValue {
   switchProject: (id: string) => Promise<void>
   createNewProject: (name: string, description?: string) => Promise<void>
   removeProject: (id: string) => Promise<void>
+  loadSkillDetail: (id: string) => Promise<void>
+  reloadSkills: () => Promise<void>
+  debugPrompt: (goal: string) => Promise<void>
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null)
@@ -271,11 +282,34 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const loadSkillDetail = async (id: string) => {
+    const detail = await fetchSkillDetail(id)
+    dispatch({ type: 'SET_ACTIVE_SKILL_DETAIL', detail })
+  }
+
+  const reloadSkillsFn = async () => {
+    await reloadSkillsApi()
+    const skills = await fetchSkills()
+    dispatch({ type: 'SET_SKILLS', skills })
+    dispatch({ type: 'SET_ACTIVE_SKILL_DETAIL', detail: null })
+  }
+
+  const debugPrompt = async (goal: string) => {
+    const result = await fetchDebugPrompt({
+      goal,
+      skillId: state.selectedSkillId ?? undefined,
+      projectId: state.currentProjectId ?? undefined,
+      fileIds: state.selectedFileIds.length > 0 ? state.selectedFileIds : undefined,
+    })
+    dispatch({ type: 'SET_DEBUG_MESSAGES', messages: result.messages })
+  }
+
   return (
     <WorkspaceContext.Provider value={{
       state, dispatch, loadSkills, loadArtifactHistory, loadRunHistory,
       openArtifact, loadVersionChain, runAgent, refineArtifact,
       loadProjects, loadProjectFiles, switchProject, createNewProject, removeProject,
+      loadSkillDetail, reloadSkills: reloadSkillsFn, debugPrompt,
     }}>
       {children}
     </WorkspaceContext.Provider>

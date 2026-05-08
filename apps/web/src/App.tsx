@@ -9,6 +9,8 @@ import { RunHistory } from './components/RunHistory'
 import { ProjectSwitcher } from './components/ProjectSwitcher'
 import { ProjectOverview } from './components/ProjectOverview'
 import { ProjectFiles } from './components/ProjectFiles'
+import { SkillDetail } from './components/SkillDetail'
+import { PromptDebugger } from './components/PromptDebugger'
 
 function AppInner() {
   const { loadSkills, loadProjects, state, loadArtifactHistory, loadRunHistory, loadProjectFiles } = useWorkspace()
@@ -56,6 +58,8 @@ function AppInner() {
           <ArtifactPreview />
         </div>
       </main>
+      <SkillDetail />
+      <PromptDebugger />
     </div>
   )
 }

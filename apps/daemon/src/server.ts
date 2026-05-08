@@ -10,6 +10,7 @@ import { runRoute } from './routes/run'
 import { runsRoute } from './routes/runs'
 import { projectsRoute } from './routes/projects'
 import { filesRoute } from './routes/files'
+import { debugRoute } from './routes/debug'
 
 const app = new Hono()
 
@@ -21,6 +22,7 @@ app.route('/', filesRoute)
 app.route('/', artifactsRoute)
 app.route('/', runRoute)
 app.route('/', runsRoute)
+app.route('/', debugRoute)
 
 app.use('/*', serveStatic({ root: '../web/dist' }))
 
