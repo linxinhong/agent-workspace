@@ -12,13 +12,17 @@ import { ProjectFiles } from './components/ProjectFiles'
 import { SkillDetail } from './components/SkillDetail'
 import { PromptDebugger } from './components/PromptDebugger'
 import { TemplatePicker, TemplateForm } from './components/TemplatePicker'
+import { AgentSelector } from './components/AgentSelector'
+import { RunDetail } from './components/RunDetail'
 
 function AppInner() {
-  const { loadSkills, loadProjects, state, loadArtifactHistory, loadRunHistory, loadProjectFiles } = useWorkspace()
+  const { loadSkills, loadProjects, loadAgents, loadAgentProfiles, state, loadArtifactHistory, loadRunHistory, loadProjectFiles } = useWorkspace()
 
   useEffect(() => {
     loadSkills()
     loadProjects()
+    loadAgents()
+    loadAgentProfiles()
   }, [])
 
   useEffect(() => {
@@ -50,6 +54,7 @@ function AppInner() {
         </aside>
         <div className="flex-1 min-w-0 flex flex-col bg-white border-r">
           <GoalInput />
+          <AgentSelector />
           <SkillSelector />
           <ChatStream />
         </div>
@@ -63,6 +68,7 @@ function AppInner() {
       <SkillDetail />
       <PromptDebugger />
       <TemplateForm />
+      <RunDetail />
     </div>
   )
 }

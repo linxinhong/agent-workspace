@@ -1,7 +1,7 @@
 import { useWorkspace } from '../context/WorkspaceContext'
 
 export function GoalInput() {
-  const { state, dispatch, runAgent } = useWorkspace()
+  const { state, dispatch, runAgent, cancelCurrentRun } = useWorkspace()
 
   const handleSubmit = () => {
     if (state.goal.trim() && !state.isRunning) {
@@ -27,13 +27,22 @@ export function GoalInput() {
           rows={2}
           className="flex-1 resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
         />
-        <button
-          onClick={handleSubmit}
-          disabled={!state.goal.trim() || state.isRunning}
-          className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-        >
-          {state.isRunning ? '执行中...' : '执行'}
-        </button>
+        {state.isRunning ? (
+          <button
+            onClick={cancelCurrentRun}
+            className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 shrink-0"
+          >
+            取消
+          </button>
+        ) : (
+          <button
+            onClick={handleSubmit}
+            disabled={!state.goal.trim()}
+            className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+          >
+            执行
+          </button>
+        )}
       </div>
       {state.error && (
         <p className="mt-2 text-sm text-red-600">{state.error}</p>

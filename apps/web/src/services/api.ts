@@ -1,4 +1,4 @@
-import type { Artifact, ArtifactType, ArtifactSummary, ArtifactTemplate, Project, SkillDetail, SkillWarning, WorkspaceFile } from '@agent-workspace/contracts'
+import type { AgentDescriptor, Artifact, ArtifactType, ArtifactSummary, ArtifactTemplate, Project, SkillDetail, SkillWarning, WorkspaceFile } from '@agent-workspace/contracts'
 
 export interface SkillBrief {
   id: string
@@ -161,6 +161,7 @@ export async function runAgentStream(input: {
   fileIds?: string[]
   templateId?: string
   templateVariables?: Record<string, string>
+  agentId?: string
   onEvent: (event: RunEvent) => void
 }): Promise<void> {
   const res = await fetch('/api/run', {
@@ -169,6 +170,7 @@ export async function runAgentStream(input: {
     body: JSON.stringify({
       goal: input.goal, skillId: input.skillId, projectId: input.projectId,
       fileIds: input.fileIds, templateId: input.templateId, templateVariables: input.templateVariables,
+      agentId: input.agentId,
     }),
   })
 
@@ -199,6 +201,36 @@ export async function refineArtifactStream(input: {
   }
 
   await consumeSSE(res, input.onEvent)
+}
+
+export async function fetchAgents(): Promise<AgentDescriptor[]> {
+  const res = await fetch('/api/agents')
+  return res.json()
+}
+
+export interface AgentProfileInfo {
+  id: string
+  name: string
+  kind: string
+  description?: string
+  command?: string
+  inputMode?: string
+  timeoutMs?: number
+  enabled?: boolean
+  acpEndpoint?: string
+  acpAgentId?: string
+  available: boolean
+  warnings: string[]
+}
+
+export async function fetchAgentProfiles(): Promise<AgentProfileInfo[]> {
+  const res = await fetch('/api/agent-profiles')
+  return res.json()
+}
+
+export async function reloadAgentProfiles(): Promise<{ ok: boolean }> {
+  const res = await fetch('/api/agent-profiles/reload', { method: 'POST' })
+  return res.json()
 }
 
 export async function fetchSkillDetail(id: string): Promise<SkillDetail> {
@@ -234,6 +266,50 @@ export interface TemplateBrief {
   type: ArtifactType
   skillId?: string
   variableCount: number
+}
+
+export interface RunDetail {
+  id: string
+  goalId: string
+  goal: string | null
+  skillId: string | null
+  model: string | null
+  status: string
+  projectId: string | null
+  createdAt: string
+  messages: Array<{ id: string; role: string; content: string; createdAt: string }>
+  artifacts: ArtifactSummary[]
+  agentId: string | null
+  agentKind: string | null
+  command: string | null
+  cwd: string | null
+  exitCode: number | null
+  durationMs: number | null
+  timedOut: number | null
+  cancelled: number | null
+  stdoutPath: string | null
+  stderrPath: string | null
+  stdoutPreview?: string
+  stderrPreview?: string
+  materializedFiles: Array<{ name: string; size: number; kind: string }>
+}
+
+export async function fetchRunDetail(id: string): Promise<RunDetail> {
+  const res = await fetch(`/api/runs/${id}`)
+  if (!res.ok) throw new Error('Run not found')
+  return res.json()
+}
+
+export async function fetchRunFile(runId: string, name: string): Promise<string> {
+  const res = await fetch(`/api/runs/${runId}/files/${encodeURIComponent(name)}`)
+  if (!res.ok) throw new Error('File not found')
+  return res.text()
+}
+
+export async function cancelRun(id: string): Promise<{ success: boolean }> {
+  const res = await fetch(`/api/runs/${id}/cancel`, { method: 'POST' })
+  if (!res.ok) { const err = await res.json(); throw new Error(err.error ?? `HTTP ${res.status}`) }
+  return res.json()
 }
 
 export async function fetchTemplates(): Promise<TemplateBrief[]> {

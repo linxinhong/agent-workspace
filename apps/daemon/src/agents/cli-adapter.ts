@@ -1,0 +1,182 @@
+import { spawn, type ChildProcess } from 'node:child_process'
+import type { AgentAdapter, AgentRunInput, AgentStreamEvent } from './types.js'
+
+const ALLOWED_ENV_KEYS = new Set(['PATH', 'HOME', 'LANG', 'TERM', 'NODE_ENV', 'USER', 'TMPDIR', 'TEMP', 'TMP'])
+
+function sanitizeEnv(): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {}
+  for (const key of ALLOWED_ENV_KEYS) {
+    if (process.env[key]) env[key] = process.env[key]
+  }
+  return env
+}
+
+export interface CliAdapterConfig {
+  id: string
+  command: string
+  args: string[]
+  inputMode: 'stdin' | 'argument' | 'prompt-file' | 'none'
+  timeoutMs: number
+}
+
+export class GenericCliAdapter implements AgentAdapter {
+  readonly id: string
+  private process: ChildProcess | null = null
+
+  constructor(private config: CliAdapterConfig) {
+    this.id = config.id
+  }
+
+  async *run(input: AgentRunInput, signal: AbortSignal): AsyncIterable<AgentStreamEvent> {
+    const { command, inputMode, timeoutMs } = this.config
+
+    let spawnArgs = [...this.config.args]
+    if (inputMode === 'argument') {
+      spawnArgs = [...spawnArgs, input.goal]
+    }
+
+    const proc = spawn(command, spawnArgs, {
+      cwd: input.workspaceDir,
+      env: sanitizeEnv(),
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
+    this.process = proc
+
+    let killed = false
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+
+    const cleanup = () => {
+      if (timeoutId) clearTimeout(timeoutId)
+      this.process = null
+    }
+
+    // Timeout
+    timeoutId = setTimeout(() => {
+      killed = true
+      try { proc.kill('SIGKILL') } catch { /* already exited */ }
+    }, timeoutMs)
+
+    // AbortSignal
+    const onAbort = () => {
+      killed = true
+      try { proc.kill('SIGKILL') } catch { /* already exited */ }
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+
+    // stdin
+    if (inputMode === 'stdin') {
+      proc.stdin.write(input.goal)
+      proc.stdin.end()
+    } else {
+      proc.stdin.end()
+    }
+
+    // stdout stream
+    const stdoutChunks: AsyncIterable<string> = readableToAsync(proc.stdout!)
+    const stderrChunks: AsyncIterable<string> = readableToAsync(proc.stderr!)
+
+    // Merge stdout + stderr + exit into one async iterable
+    yield* mergeStreams(stdoutChunks, stderrChunks, proc, signal)
+
+    signal.removeEventListener('abort', onAbort)
+    cleanup()
+
+    if (killed) {
+      yield { type: 'exit', code: null }
+    }
+  }
+
+  cancel(): void {
+    if (this.process) {
+      try { this.process.kill('SIGKILL') } catch { /* ignore */ }
+      this.process = null
+    }
+  }
+}
+
+async function* readableToAsync(stream: NodeJS.ReadableStream): AsyncIterable<string> {
+  const reader = (stream as any)[Symbol.asyncIterator]()
+  try {
+    while (true) {
+      const { value, done } = await reader.next()
+      if (done) return
+      if (value) yield value.toString()
+    }
+  } catch {
+    // stream closed or error
+  }
+}
+
+async function* mergeStreams(
+  stdout: AsyncIterable<string>,
+  stderr: AsyncIterable<string>,
+  proc: ChildProcess,
+  signal: AbortSignal,
+): AsyncIterable<AgentStreamEvent> {
+  const stdoutIter = stdout[Symbol.asyncIterator]()
+  const stderrIter = stderr[Symbol.asyncIterator]()
+  const exitPromise = new Promise<{ code: number | null }>((resolve) => {
+    proc.on('exit', (code) => resolve({ code }))
+  })
+
+  const results: IteratorResult<string>[] = []
+  let exitCode: { code: number | null } | null = null
+  let pendingStdout = true
+  let pendingStderr = true
+  let pendingExit = true
+
+  while (pendingStdout || pendingStderr || pendingExit) {
+    const promises: Promise<any>[] = []
+    const tags: string[] = []
+
+    if (pendingStdout) { promises.push(stdoutIter.next().then(r => ({ tag: 'stdout', r }))); tags.push('stdout') }
+    if (pendingStderr) { promises.push(stderrIter.next().then(r => ({ tag: 'stderr', r }))); tags.push('stderr') }
+    if (pendingExit) { promises.push(exitPromise.then(r => ({ tag: 'exit', r }))); tags.push('exit') }
+
+    if (promises.length === 0) break
+
+    const winner = await Promise.race(promises)
+
+    if (winner.tag === 'stdout') {
+      if (winner.r.done) {
+        pendingStdout = false
+      } else {
+        yield { type: 'stdout', text: winner.r.value }
+      }
+    } else if (winner.tag === 'stderr') {
+      if (winner.r.done) {
+        pendingStderr = false
+      } else {
+        yield { type: 'stderr', text: winner.r.value }
+      }
+    } else if (winner.tag === 'exit') {
+      exitCode = winner.r
+      pendingExit = false
+      // Drain remaining stdout/stderr
+      if (pendingStdout) {
+        try {
+          while (true) {
+            const { value, done } = await stdoutIter.next()
+            if (done) break
+            yield { type: 'stdout', text: value }
+          }
+        } catch { /* ignore */ }
+        pendingStdout = false
+      }
+      if (pendingStderr) {
+        try {
+          while (true) {
+            const { value, done } = await stderrIter.next()
+            if (done) break
+            yield { type: 'stderr', text: value }
+          }
+        } catch { /* ignore */ }
+        pendingStderr = false
+      }
+    }
+  }
+
+  if (exitCode) {
+    yield { type: 'exit', code: exitCode.code }
+  }
+}

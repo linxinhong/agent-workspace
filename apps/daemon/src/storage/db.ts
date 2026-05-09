@@ -84,6 +84,17 @@ const migrations = [
   `ALTER TABLE runs ADD COLUMN project_id TEXT`,
   `ALTER TABLE artifacts ADD COLUMN project_id TEXT`,
   `ALTER TABLE artifacts ADD COLUMN change_note TEXT`,
+  `ALTER TABLE runs ADD COLUMN agent_id TEXT`,
+  `ALTER TABLE runs ADD COLUMN agent_kind TEXT`,
+  `ALTER TABLE runs ADD COLUMN command TEXT`,
+  `ALTER TABLE runs ADD COLUMN cwd TEXT`,
+  `ALTER TABLE runs ADD COLUMN exit_code INTEGER`,
+  `ALTER TABLE runs ADD COLUMN duration_ms INTEGER`,
+  `ALTER TABLE runs ADD COLUMN stdout_path TEXT`,
+  `ALTER TABLE runs ADD COLUMN stderr_path TEXT`,
+  `ALTER TABLE runs ADD COLUMN result_path TEXT`,
+  `ALTER TABLE runs ADD COLUMN timed_out INTEGER DEFAULT 0`,
+  `ALTER TABLE runs ADD COLUMN cancelled INTEGER DEFAULT 0`,
 ]
 
 for (const sql of migrations) {

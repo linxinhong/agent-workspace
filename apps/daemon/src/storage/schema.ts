@@ -23,6 +23,17 @@ export const runs = sqliteTable('runs', {
   model: text('model'),
   status: text('status').notNull(),
   projectId: text('project_id'),
+  agentId: text('agent_id'),
+  agentKind: text('agent_kind'),
+  command: text('command'),
+  cwd: text('cwd'),
+  exitCode: integer('exit_code'),
+  durationMs: integer('duration_ms'),
+  stdoutPath: text('stdout_path'),
+  stderrPath: text('stderr_path'),
+  resultPath: text('result_path'),
+  timedOut: integer('timed_out').default(0),
+  cancelled: integer('cancelled').default(0),
   createdAt: text('created_at').notNull(),
 })
 

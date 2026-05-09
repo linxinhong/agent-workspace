@@ -2,6 +2,8 @@ import type { UserGoal } from './goal'
 import type { Skill } from './skill'
 import type { Artifact } from './artifact'
 
+// --- Existing API Provider types ---
+
 export interface AgentProvider {
   run(input: AgentProviderInput): AsyncIterable<string>
 }
@@ -24,3 +26,18 @@ export type AgentEvent =
   | { type: 'artifact'; artifact: Artifact }
   | { type: 'error'; error: string }
   | { type: 'done' }
+
+// --- Local Agent Adapter types ---
+
+export type AgentKind = 'api' | 'cli'
+
+export interface AgentDescriptor {
+  id: string
+  name: string
+  description?: string
+  kind: AgentKind
+  command?: string
+  args?: string[]
+  detected: boolean
+  version?: string
+}

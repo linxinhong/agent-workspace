@@ -1,0 +1,17 @@
+{
+  "id": "generic-example",
+  "name": "Generic Example",
+  "kind": "local-cli",
+  "description": "通用示例 profile，使用 echo 命令测试 prompt-file 模式",
+  "command": "echo",
+  "args": [],
+  "inputMode": "prompt-file",
+  "timeoutMs": 10000,
+  "enabled": false,
+  "capabilities": {
+    "streaming": false,
+    "supportsCwd": false,
+    "supportsNonInteractive": true,
+    "ptyRequired": false
+  }
+}

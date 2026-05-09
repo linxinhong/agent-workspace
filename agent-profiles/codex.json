@@ -1,0 +1,20 @@
+{
+  "id": "codex",
+  "name": "Codex",
+  "kind": "local-cli",
+  "description": "OpenAI Codex CLI — 本地代码生成 Agent",
+  "command": "codex",
+  "versionArgs": ["--version"],
+  "args": ["exec"],
+  "inputMode": "stdin",
+  "timeoutMs": 120000,
+  "enabled": true,
+  "capabilities": {
+    "streaming": true,
+    "fileEditing": true,
+    "supportsCwd": true,
+    "supportsEnv": true,
+    "supportsNonInteractive": true,
+    "ptyRequired": false
+  }
+}

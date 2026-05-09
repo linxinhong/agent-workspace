@@ -1,11 +1,13 @@
 import { createContext, useContext, useReducer, type ReactNode } from 'react'
-import type { Artifact, ArtifactSummary, ArtifactTemplate, Project, SkillDetail, WorkspaceFile } from '@agent-workspace/contracts'
+import type { AgentDescriptor, Artifact, ArtifactSummary, ArtifactTemplate, Project, SkillDetail, WorkspaceFile } from '@agent-workspace/contracts'
 import {
   fetchSkills, fetchArtifact, fetchArtifactSummaries, fetchRuns, fetchArtifactVersions,
   runAgentStream, refineArtifactStream, fetchProjects, createProject, deleteProject, fetchProjectDetail,
   fetchProjectFiles, fetchSkillDetail, reloadSkills as reloadSkillsApi, fetchDebugPrompt,
   fetchTemplates as fetchTemplatesApi, fetchTemplateDetail, renderTemplate,
-  type RunEvent, type RunSummary, type SkillBrief, type ProjectDetail, type TemplateBrief,
+  fetchAgents, fetchRunDetail, cancelRun as cancelRunApi,
+  fetchAgentProfiles,
+  type RunEvent, type RunSummary, type RunDetail, type SkillBrief, type ProjectDetail, type TemplateBrief, type AgentProfileInfo,
 } from '../services/api'
 
 const LAST_PROJECT_KEY = 'agent-workspace:lastProjectId'
@@ -33,6 +35,11 @@ interface State {
   debugMessages: Array<{ role: string; content: string }> | null
   templates: TemplateBrief[]
   activeTemplate: ArtifactTemplate | null
+  agents: AgentDescriptor[]
+  agentProfiles: AgentProfileInfo[]
+  selectedAgentId: string
+  activeRunDetail: RunDetail | null
+  currentRunId: string | null
 }
 
 type Action =
@@ -63,6 +70,11 @@ type Action =
   | { type: 'SET_DEBUG_MESSAGES'; messages: Array<{ role: string; content: string }> | null }
   | { type: 'SET_TEMPLATES'; templates: TemplateBrief[] }
   | { type: 'SET_ACTIVE_TEMPLATE'; template: ArtifactTemplate | null }
+  | { type: 'SET_AGENTS'; agents: AgentDescriptor[] }
+  | { type: 'SET_AGENT_PROFILES'; profiles: AgentProfileInfo[] }
+  | { type: 'SELECT_AGENT'; agentId: string }
+  | { type: 'SET_ACTIVE_RUN_DETAIL'; detail: RunDetail | null }
+  | { type: 'SET_CURRENT_RUN_ID'; runId: string | null }
 
 const initialState: State = {
   skills: [], selectedSkillId: null, goal: '', messages: [], artifacts: [],
@@ -75,6 +87,11 @@ const initialState: State = {
   debugMessages: null,
   templates: [],
   activeTemplate: null,
+  agents: [],
+  agentProfiles: [],
+  selectedAgentId: 'api-default',
+  activeRunDetail: null,
+  currentRunId: null,
 }
 
 function reducer(state: State, action: Action): State {
@@ -123,6 +140,11 @@ function reducer(state: State, action: Action): State {
     case 'SET_DEBUG_MESSAGES': return { ...state, debugMessages: action.messages }
     case 'SET_TEMPLATES': return { ...state, templates: action.templates }
     case 'SET_ACTIVE_TEMPLATE': return { ...state, activeTemplate: action.template }
+    case 'SET_AGENTS': return { ...state, agents: action.agents }
+    case 'SET_AGENT_PROFILES': return { ...state, agentProfiles: action.profiles }
+    case 'SELECT_AGENT': return { ...state, selectedAgentId: action.agentId }
+    case 'SET_ACTIVE_RUN_DETAIL': return { ...state, activeRunDetail: action.detail }
+    case 'SET_CURRENT_RUN_ID': return { ...state, currentRunId: action.runId }
   }
 }
 
@@ -148,6 +170,11 @@ interface WorkspaceContextValue {
   openTemplate: (id: string) => Promise<void>
   createFromTemplate: (id: string, variables: Record<string, string>) => Promise<void>
   runWithTemplate: (id: string, variables: Record<string, string>, goal: string) => Promise<void>
+  loadAgents: () => Promise<void>
+  loadAgentProfiles: () => Promise<void>
+  openRunDetail: (id: string) => Promise<void>
+  closeRunDetail: () => void
+  cancelCurrentRun: () => Promise<void>
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null)
@@ -191,8 +218,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         skillId: state.selectedSkillId ?? undefined,
         projectId: state.currentProjectId ?? undefined,
         fileIds: state.selectedFileIds.length > 0 ? state.selectedFileIds : undefined,
+        agentId: state.selectedAgentId !== 'api-default' ? state.selectedAgentId : undefined,
         onEvent: (event: RunEvent) => {
           switch (event.type) {
+            case 'start':
+              dispatch({ type: 'SET_CURRENT_RUN_ID', runId: event.data.goalId as string })
+              break
             case 'delta':
               dispatch({ type: 'APPEND_DELTA', content: event.data.content as string })
               break
@@ -210,6 +241,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
               break
             case 'done':
               dispatch({ type: 'FINISH_RUN' })
+              dispatch({ type: 'SET_CURRENT_RUN_ID', runId: null })
               loadArtifactHistory()
               loadRunHistory()
               break
@@ -353,6 +385,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         fileIds: state.selectedFileIds.length > 0 ? state.selectedFileIds : undefined,
         templateId: id,
         templateVariables: variables,
+        agentId: state.selectedAgentId !== 'api-default' ? state.selectedAgentId : undefined,
         onEvent: (event: RunEvent) => {
           switch (event.type) {
             case 'delta':
@@ -383,6 +416,36 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const loadAgentsFn = async () => {
+    const agents = await fetchAgents()
+    dispatch({ type: 'SET_AGENTS', agents })
+  }
+
+  const loadAgentProfilesFn = async () => {
+    const profiles = await fetchAgentProfiles()
+    dispatch({ type: 'SET_AGENT_PROFILES', profiles })
+  }
+
+  const openRunDetail = async (id: string) => {
+    const detail = await fetchRunDetail(id)
+    dispatch({ type: 'SET_ACTIVE_RUN_DETAIL', detail })
+  }
+
+  const closeRunDetail = () => {
+    dispatch({ type: 'SET_ACTIVE_RUN_DETAIL', detail: null })
+  }
+
+  const cancelCurrentRun = async () => {
+    if (!state.currentRunId) return
+    try {
+      await cancelRunApi(state.currentRunId)
+      dispatch({ type: 'FINISH_RUN' })
+      dispatch({ type: 'SET_CURRENT_RUN_ID', runId: null })
+    } catch (err) {
+      dispatch({ type: 'SET_ERROR', error: err instanceof Error ? err.message : 'Cancel failed' })
+    }
+  }
+
   return (
     <WorkspaceContext.Provider value={{
       state, dispatch, loadSkills, loadArtifactHistory, loadRunHistory,
@@ -390,6 +453,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       loadProjects, loadProjectFiles, switchProject, createNewProject, removeProject,
       loadSkillDetail, reloadSkills: reloadSkillsFn, debugPrompt,
       loadTemplates: loadTemplatesFn, openTemplate, createFromTemplate, runWithTemplate,
+      loadAgents: loadAgentsFn,
+      loadAgentProfiles: loadAgentProfilesFn,
+      openRunDetail, closeRunDetail, cancelCurrentRun,
     }}>
       {children}
     </WorkspaceContext.Provider>

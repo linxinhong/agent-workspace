@@ -1,0 +1,16 @@
+{
+  "id": "acp-remote-demo",
+  "name": "ACP Remote Agent",
+  "kind": "acp",
+  "description": "ACP 远程 Agent 示例 — 通过 HTTP/SSE 通信",
+  "acpEndpoint": "http://localhost:8000",
+  "acpAgentId": "demo-agent",
+  "timeoutMs": 120000,
+  "enabled": false,
+  "capabilities": {
+    "streaming": true,
+    "fileEditing": false,
+    "supportsNonInteractive": true,
+    "ptyRequired": false
+  }
+}

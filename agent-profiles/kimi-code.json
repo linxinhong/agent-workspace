@@ -1,0 +1,20 @@
+{
+  "id": "kimi-code",
+  "name": "Kimi Code",
+  "kind": "local-cli",
+  "description": "Moonshot Kimi Code CLI — 本地代码 Agent",
+  "command": "kimi",
+  "versionArgs": ["--version"],
+  "args": [],
+  "inputMode": "stdin",
+  "timeoutMs": 120000,
+  "enabled": true,
+  "capabilities": {
+    "streaming": true,
+    "fileEditing": true,
+    "supportsCwd": true,
+    "supportsEnv": true,
+    "supportsNonInteractive": true,
+    "ptyRequired": false
+  }
+}

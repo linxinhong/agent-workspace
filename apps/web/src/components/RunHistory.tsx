@@ -15,10 +15,11 @@ const statusColors: Record<string, string> = {
   completed: 'text-green-600',
   error: 'text-red-500',
   running: 'text-blue-500',
+  cancelled: 'text-yellow-500',
 }
 
 export function RunHistory() {
-  const { state } = useWorkspace()
+  const { state, openRunDetail } = useWorkspace()
 
   if (state.runHistory.length === 0) {
     return (
@@ -31,14 +32,21 @@ export function RunHistory() {
   return (
     <div className="flex-1 overflow-y-auto">
       {state.runHistory.map((run) => (
-        <div key={run.id} className="px-3 py-2.5 border-b border-gray-100">
+        <div
+          key={run.id}
+          onClick={() => openRunDetail(run.id)}
+          className="px-3 py-2.5 border-b border-gray-100 cursor-pointer hover:bg-gray-50"
+        >
           <div className="flex items-center gap-2">
             <span className={`text-xs font-medium ${statusColors[run.status] ?? 'text-gray-400'}`}>
-              {run.status === 'completed' ? '✓' : run.status === 'error' ? '✗' : '●'}
+              {run.status === 'completed' ? '✓' : run.status === 'error' ? '✗' : run.status === 'cancelled' ? '⊘' : '●'}
             </span>
             <span className="text-xs text-gray-700 truncate flex-1">
               {run.goalContent?.slice(0, 60) ?? '(无目标)'}
             </span>
+            {run.model && run.model !== 'gpt-4.1' && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 shrink-0">{run.model}</span>
+            )}
           </div>
           <div className="flex items-center gap-2 mt-0.5 pl-5">
             {run.skillId && (
