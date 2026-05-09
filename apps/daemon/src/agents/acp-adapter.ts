@@ -1,14 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process'
+import { Readable, Writable } from 'node:stream'
+import * as acp from '@agentclientprotocol/sdk'
 import type { AgentAdapter, AgentRunInput, AgentStreamEvent } from './types.js'
-
-interface JsonRpcMessage {
-  jsonrpc: '2.0'
-  id?: number
-  method?: string
-  params?: unknown
-  result?: unknown
-  error?: { code: number; message: string; data?: unknown }
-}
 
 type TransportKind = 'stdio' | 'http-sse'
 
@@ -82,96 +75,64 @@ export class AcpAdapter implements AgentAdapter {
     }
     signal.addEventListener('abort', onAbort, { once: true })
 
-    // JSON-RPC helpers
-    let nextId = 0
-    const pendingRequests = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>()
-
-    const sendRequest = (method: string, params?: unknown): Promise<unknown> => {
-      const id = nextId++
-      return new Promise((resolve, reject) => {
-        pendingRequests.set(id, { resolve, reject })
-        const msg: JsonRpcMessage = { jsonrpc: '2.0', id, method, params }
-        proc.stdin!.write(JSON.stringify(msg) + '\n')
-      })
-    }
-
-    const sendNotification = (method: string, params?: unknown): void => {
-      const msg: JsonRpcMessage = { jsonrpc: '2.0', method, params }
-      proc.stdin!.write(JSON.stringify(msg) + '\n')
-    }
-
-    // Queue for ACP events yielded to the caller
+    // Event queue for yielding to the caller
     const eventQueue: AgentStreamEvent[] = []
     let eventResolve: ((value: void) => void) | null = null
-    let stdoutDone = false
-    let sessionId: string | undefined
+    let done = false
 
     const pushEvent = (event: AgentStreamEvent) => {
       eventQueue.push(event)
-      if (eventResolve) {
-        eventResolve()
-        eventResolve = null
-      }
+      if (eventResolve) { eventResolve(); eventResolve = null }
     }
 
     const waitForEvent = (): Promise<void> => {
-      if (eventQueue.length > 0 || stdoutDone) return Promise.resolve()
+      if (eventQueue.length > 0 || done) return Promise.resolve()
       return new Promise<void>((resolve) => { eventResolve = resolve })
     }
 
-    // Parse stdout lines for JSON-RPC messages
-    let buffer = ''
-    proc.stdout!.on('data', (chunk: Buffer) => {
-      buffer += chunk.toString()
-      const lines = buffer.split('\n')
-      buffer = lines.pop() ?? ''
+    // Create SDK stream from subprocess stdio
+    const webStdin = Writable.toWeb(proc.stdin!)
+    const webStdout = Readable.toWeb(proc.stdout!) as ReadableStream<Uint8Array>
+    const stream = acp.ndJsonStream(webStdin, webStdout)
 
-      for (const line of lines) {
-        if (!line.trim()) continue
-        try {
-          const msg: JsonRpcMessage = JSON.parse(line)
-
-          if (msg.id !== undefined && pendingRequests.has(msg.id)) {
-            const pending = pendingRequests.get(msg.id)!
-            pendingRequests.delete(msg.id)
-            if (msg.error) {
-              pending.reject(new Error(msg.error.message))
-            } else {
-              pending.resolve(msg.result)
-            }
-          } else if (msg.id !== undefined && msg.method && !pendingRequests.has(msg.id)) {
-            // Incoming JSON-RPC request from agent (client callbacks)
-            // Respond with empty/default result to avoid deadlock
-            const result = handleClientCallback(msg.method, msg.params)
-            const resp = { jsonrpc: '2.0', id: msg.id, result }
-            proc.stdin!.write(JSON.stringify(resp) + '\n')
-          } else if (msg.method === 'session/update' && msg.params) {
-            const p = msg.params as Record<string, unknown>
-            const update = p.update as Record<string, unknown> | undefined
-            if (update) {
-              const updateType = update.sessionUpdate as string | undefined
-              if (updateType === 'agent_message_chunk') {
-                const content = update.content as Record<string, unknown> | undefined
-                if (content?.type === 'text' && typeof content.text === 'string') {
-                  pushEvent({ type: 'stdout', text: content.text })
-                }
-                const items = update.items as Array<Record<string, unknown>> | undefined
-                if (items) {
-                  for (const item of items) {
-                    if (item.type === 'text' && typeof item.text === 'string') {
-                      pushEvent({ type: 'stdout', text: item.text })
-                    }
-                  }
-                }
-              }
-            }
+    // Client implementation — receives notifications from agent
+    const client: acp.Client = {
+      async requestPermission(params) {
+        const first = params.options[0]
+        return { outcome: { outcome: 'selected', optionId: first?.optionId ?? 'allow' } }
+      },
+      async sessionUpdate(params) {
+        const update = params.update
+        if (update.sessionUpdate === 'agent_message_chunk') {
+          if (update.content.type === 'text') {
+            pushEvent({ type: 'stdout', text: update.content.text })
           }
-        } catch {
-          // Not JSON, forward as raw text
-          pushEvent({ type: 'stdout', text: line })
         }
-      }
-    })
+      },
+      async readTextFile() {
+        return { content: '' }
+      },
+      async writeTextFile() {
+        return {}
+      },
+      async createTerminal() {
+        return { terminalId: 'none', title: '' }
+      },
+      async terminalOutput() {
+        return { output: '', truncated: false }
+      },
+      async releaseTerminal() {
+        return {}
+      },
+      async waitForTerminalExit() {
+        return { exitCode: 0 }
+      },
+      async killTerminal() {
+        return {}
+      },
+    }
+
+    const conn = new acp.ClientSideConnection(() => client, stream)
 
     proc.stderr!.on('data', (chunk: Buffer) => {
       const text = chunk.toString().trim()
@@ -179,50 +140,28 @@ export class AcpAdapter implements AgentAdapter {
     })
 
     proc.on('exit', () => {
-      stdoutDone = true
-      if (eventResolve) {
-        eventResolve()
-        eventResolve = null
-      }
+      done = true
+      if (eventResolve) { eventResolve(); eventResolve = null }
     })
 
-    // ACP handshake
+    // ACP handshake + prompt
     try {
-      const initResult = await sendRequest('initialize', {
+      await conn.initialize({
         protocolVersion: 1,
         clientInfo: { name: 'agent-workspace', version: '0.1.0' },
-        clientCapabilities: {},
-      }) as Record<string, unknown> | null
+      })
 
-      if (!initResult) {
-        pushEvent({ type: 'stderr', text: 'ACP initialize failed' })
-        pushEvent({ type: 'exit', code: 1 })
-        signal.removeEventListener('abort', onAbort)
-        cleanup()
-        return
-      }
-
-      const sessionResult = await sendRequest('session/new', {
+      const session = await conn.newSession({
         cwd: input.workspaceDir,
         mcpServers: [],
-      }) as Record<string, unknown> | null
+      })
 
-      if (!sessionResult) {
-        pushEvent({ type: 'stderr', text: 'ACP session/new failed' })
-        pushEvent({ type: 'exit', code: 1 })
-        signal.removeEventListener('abort', onAbort)
-        cleanup()
-        return
-      }
-
-      sessionId = sessionResult.sessionId as string | undefined
-
-      // Send prompt (fire and forget — stream notifications before response)
-      sendRequest('session/prompt', {
-        sessionId,
+      // Fire-and-forget prompt — stream notifications arrive via sessionUpdate callback
+      conn.prompt({
+        sessionId: session.sessionId,
         prompt: [{ type: 'text', text: input.goal }],
       }).then(() => {
-        stdoutDone = true
+        done = true
         if (eventResolve) { eventResolve(); eventResolve = null }
         try { proc.kill('SIGTERM') } catch { /* ignore */ }
       }).catch(err => {
@@ -236,16 +175,15 @@ export class AcpAdapter implements AgentAdapter {
       return
     }
 
-    // Stream events until process exits
+    // Stream events until done
     while (true) {
       await waitForEvent()
       while (eventQueue.length > 0) {
         yield eventQueue.shift()!
       }
-      if (stdoutDone) break
+      if (done) break
     }
 
-    // Drain remaining
     while (eventQueue.length > 0) {
       yield eventQueue.shift()!
     }
@@ -331,26 +269,5 @@ export class AcpAdapter implements AgentAdapter {
     } finally {
       clearTimeout(timeoutId)
     }
-  }
-}
-
-function handleClientCallback(method: string, _params: unknown): unknown {
-  switch (method) {
-    case 'session/request_permission':
-      return { granted: true }
-    case 'fs/read_text_file':
-      return { content: '' }
-    case 'fs/write_text_file':
-      return {}
-    case 'terminal/create':
-      return { terminalId: 'none' }
-    case 'terminal/output':
-      return { output: '' }
-    case 'terminal/release':
-    case 'terminal/kill':
-    case 'terminal/wait_for_exit':
-      return {}
-    default:
-      return {}
   }
 }

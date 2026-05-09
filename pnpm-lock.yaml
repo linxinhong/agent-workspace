@@ -26,6 +26,9 @@ importers:
       '@agent-workspace/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@agentclientprotocol/sdk':
+        specifier: ^0.21.0
+        version: 0.21.0(zod@4.4.3)
       '@hono/node-server':
         specifier: ^1.14.0
         version: 1.19.14(hono@4.12.18)
@@ -92,6 +95,11 @@ importers:
   packages/contracts: {}
 
 packages:
+
+  '@agentclientprotocol/sdk@0.21.0':
+    resolution: {integrity: sha512-ONj+Q8qOdNQp5XbH5jnMwzT9IKZJsSN0p0lkceS4GtUtNOPVLpNzSS8gqQdGMKfBvA0ESbkL8BTaSN1Rc9miEw==}
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
 
   '@babel/code-frame@7.29.0':
     resolution: {integrity: sha512-9NhCeYjq9+3uxgdtp20LSiJXJvN0FeCtNGpJxuMFZ1Kv3cWUNb6DOhJwUvcVCzKGR66cw4njwM6hrJLqgOwbcw==}
@@ -1742,6 +1750,10 @@ packages:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
 
 snapshots:
+
+  '@agentclientprotocol/sdk@0.21.0(zod@4.4.3)':
+    dependencies:
+      zod: 4.4.3
 
   '@babel/code-frame@7.29.0':
     dependencies:
