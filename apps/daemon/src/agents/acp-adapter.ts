@@ -139,23 +139,28 @@ export class AcpAdapter implements AgentAdapter {
             } else {
               pending.resolve(msg.result)
             }
-          } else if (msg.method === 'session_update' && msg.params) {
+          } else if (msg.id !== undefined && msg.method && !pendingRequests.has(msg.id)) {
+            // Incoming JSON-RPC request from agent (client callbacks)
+            // Respond with empty/default result to avoid deadlock
+            const result = handleClientCallback(msg.method, msg.params)
+            const resp = { jsonrpc: '2.0', id: msg.id, result }
+            proc.stdin!.write(JSON.stringify(resp) + '\n')
+          } else if (msg.method === 'session/update' && msg.params) {
             const p = msg.params as Record<string, unknown>
             const update = p.update as Record<string, unknown> | undefined
             if (update) {
-              const type = update.type as string | undefined
-              if (type === 'agent_message_chunk') {
-                const items = (update.items as Array<Record<string, unknown>>) ?? []
-                for (const item of items) {
-                  if (item.type === 'text' && typeof item.text === 'string') {
-                    pushEvent({ type: 'stdout', text: item.text })
-                  }
+              const updateType = update.sessionUpdate as string | undefined
+              if (updateType === 'agent_message_chunk') {
+                const content = update.content as Record<string, unknown> | undefined
+                if (content?.type === 'text' && typeof content.text === 'string') {
+                  pushEvent({ type: 'stdout', text: content.text })
                 }
-              } else if (type === 'agent_thought_chunk') {
-                const items = (update.items as Array<Record<string, unknown>>) ?? []
-                for (const item of items) {
-                  if (item.type === 'text' && typeof item.text === 'string') {
-                    pushEvent({ type: 'stdout', text: item.text })
+                const items = update.items as Array<Record<string, unknown>> | undefined
+                if (items) {
+                  for (const item of items) {
+                    if (item.type === 'text' && typeof item.text === 'string') {
+                      pushEvent({ type: 'stdout', text: item.text })
+                    }
                   }
                 }
               }
@@ -184,8 +189,9 @@ export class AcpAdapter implements AgentAdapter {
     // ACP handshake
     try {
       const initResult = await sendRequest('initialize', {
-        protocol_version: 1,
-        client_info: { name: 'agent-workspace', version: '0.1.0' },
+        protocolVersion: 1,
+        clientInfo: { name: 'agent-workspace', version: '0.1.0' },
+        clientCapabilities: {},
       }) as Record<string, unknown> | null
 
       if (!initResult) {
@@ -196,24 +202,31 @@ export class AcpAdapter implements AgentAdapter {
         return
       }
 
-      const sessionResult = await sendRequest('new_session', {
+      const sessionResult = await sendRequest('session/new', {
         cwd: input.workspaceDir,
+        mcpServers: [],
       }) as Record<string, unknown> | null
 
       if (!sessionResult) {
-        pushEvent({ type: 'stderr', text: 'ACP new_session failed' })
+        pushEvent({ type: 'stderr', text: 'ACP session/new failed' })
         pushEvent({ type: 'exit', code: 1 })
         signal.removeEventListener('abort', onAbort)
         cleanup()
         return
       }
 
-      sessionId = sessionResult.session_id as string | undefined
+      sessionId = sessionResult.sessionId as string | undefined
 
-      // Send prompt
-      await sendRequest('prompt', {
-        session_id: sessionId,
+      // Send prompt (fire and forget — stream notifications before response)
+      sendRequest('session/prompt', {
+        sessionId,
         prompt: [{ type: 'text', text: input.goal }],
+      }).then(() => {
+        stdoutDone = true
+        if (eventResolve) { eventResolve(); eventResolve = null }
+        try { proc.kill('SIGTERM') } catch { /* ignore */ }
+      }).catch(err => {
+        pushEvent({ type: 'stderr', text: err instanceof Error ? err.message : 'prompt error' })
       })
     } catch (err) {
       pushEvent({ type: 'stderr', text: err instanceof Error ? err.message : 'ACP handshake error' })
@@ -318,5 +331,26 @@ export class AcpAdapter implements AgentAdapter {
     } finally {
       clearTimeout(timeoutId)
     }
+  }
+}
+
+function handleClientCallback(method: string, _params: unknown): unknown {
+  switch (method) {
+    case 'session/request_permission':
+      return { granted: true }
+    case 'fs/read_text_file':
+      return { content: '' }
+    case 'fs/write_text_file':
+      return {}
+    case 'terminal/create':
+      return { terminalId: 'none' }
+    case 'terminal/output':
+      return { output: '' }
+    case 'terminal/release':
+    case 'terminal/kill':
+    case 'terminal/wait_for_exit':
+      return {}
+    default:
+      return {}
   }
 }

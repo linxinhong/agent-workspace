@@ -1,0 +1,17 @@
+{
+  "id": "kimi-code-acp",
+  "name": "Kimi Code (ACP)",
+  "kind": "acp",
+  "description": "Moonshot Kimi Code CLI — ACP stdio 协议模式",
+  "command": "kimi",
+  "args": ["acp"],
+  "acpEndpoint": "stdio",
+  "acpAgentId": "kimi-code",
+  "timeoutMs": 120000,
+  "enabled": true,
+  "capabilities": {
+    "streaming": true,
+    "fileEditing": true,
+    "supportsCwd": true
+  }
+}
