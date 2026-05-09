@@ -15,7 +15,8 @@ export interface CliAdapterConfig {
   id: string
   command: string
   args: string[]
-  inputMode: 'stdin' | 'argument' | 'prompt-file' | 'none'
+  inputMode: 'stdin' | 'stdin-json' | 'argument' | 'prompt-file' | 'none'
+  outputFormat?: 'text' | 'stream-json'
   timeoutMs: number
 }
 
@@ -67,13 +68,19 @@ export class GenericCliAdapter implements AgentAdapter {
     if (inputMode === 'stdin') {
       proc.stdin.write(input.goal)
       proc.stdin.end()
+    } else if (inputMode === 'stdin-json') {
+      proc.stdin.write(JSON.stringify({ role: 'user', content: input.goal }) + '\n')
+      proc.stdin.end()
     } else {
       proc.stdin.end()
     }
 
     // stdout stream
-    const stdoutChunks: AsyncIterable<string> = readableToAsync(proc.stdout!)
+    const rawStdout: AsyncIterable<string> = readableToAsync(proc.stdout!)
     const stderrChunks: AsyncIterable<string> = readableToAsync(proc.stderr!)
+    const stdoutChunks = this.config.outputFormat === 'stream-json'
+      ? parseStreamJson(rawStdout)
+      : rawStdout
 
     // Merge stdout + stderr + exit into one async iterable
     yield* mergeStreams(stdoutChunks, stderrChunks, proc, signal)
@@ -178,5 +185,53 @@ async function* mergeStreams(
 
   if (exitCode) {
     yield { type: 'exit', code: exitCode.code }
+  }
+}
+
+async function* parseStreamJson(source: AsyncIterable<string>): AsyncIterable<string> {
+  let buffer = ''
+  for await (const chunk of source) {
+    buffer += chunk
+    const lines = buffer.split('\n')
+    buffer = lines.pop() ?? ''
+
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (!trimmed) continue
+      try {
+        const obj = JSON.parse(trimmed)
+        // Extract text from kimi stream-json output formats
+        if (obj.role === 'assistant' && Array.isArray(obj.content)) {
+          for (const part of obj.content) {
+            if (part.type === 'text' && typeof part.text === 'string') {
+              yield part.text
+            }
+          }
+        } else if (obj.type === 'text' && typeof obj.text === 'string') {
+          yield obj.text
+        } else if (obj.type === 'notification' && typeof obj.message === 'string') {
+          yield obj.message
+        }
+        // Skip ToolCall, ToolResult, PlanDisplay, etc.
+      } catch {
+        // Not JSON — forward as-is
+        yield trimmed
+      }
+    }
+  }
+  // Flush remaining
+  if (buffer.trim()) {
+    try {
+      const obj = JSON.parse(buffer.trim())
+      if (obj.role === 'assistant' && Array.isArray(obj.content)) {
+        for (const part of obj.content) {
+          if (part.type === 'text' && typeof part.text === 'string') yield part.text
+        }
+      } else if (obj.type === 'text' && typeof obj.text === 'string') {
+        yield obj.text
+      }
+    } catch {
+      yield buffer.trim()
+    }
   }
 }

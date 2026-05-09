@@ -1,11 +1,15 @@
 import { readdirSync, readFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { join, resolve, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { AgentProfile } from './agent-profile.types.js'
 import { validateAgentProfile } from './validate-agent-profile.js'
 
 let cachedProfiles: AgentProfile[] | null = null
 
-const DEFAULT_BASE = resolve(process.cwd(), 'agent-profiles')
+// Resolve to monorepo root: apps/daemon/src/agents/profiles/ → ../../../../../ → project root
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const PROJECT_ROOT = resolve(__dirname, '..', '..', '..', '..', '..')
+const DEFAULT_BASE = resolve(PROJECT_ROOT, 'agent-profiles')
 
 export function loadProfiles(basePath?: string): AgentProfile[] {
   if (cachedProfiles) return cachedProfiles

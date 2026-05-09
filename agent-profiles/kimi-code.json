@@ -2,19 +2,18 @@
   "id": "kimi-code",
   "name": "Kimi Code",
   "kind": "local-cli",
-  "description": "Moonshot Kimi Code CLI — 本地代码 Agent",
+  "description": "Moonshot Kimi Code CLI — stream-json 模式",
   "command": "kimi",
   "versionArgs": ["--version"],
-  "args": [],
-  "inputMode": "stdin",
+  "args": ["--print", "--input-format", "stream-json", "--output-format", "stream-json"],
+  "inputMode": "stdin-json",
+  "outputFormat": "stream-json",
   "timeoutMs": 120000,
   "enabled": true,
   "capabilities": {
     "streaming": true,
     "fileEditing": true,
     "supportsCwd": true,
-    "supportsEnv": true,
-    "supportsNonInteractive": true,
-    "ptyRequired": false
+    "supportsNonInteractive": true
   }
 }

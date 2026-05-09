@@ -1,7 +1,7 @@
 import type { AgentProfile, AgentInputMode, PromptStrategy } from './agent-profile.types.js'
 
 const VALID_KINDS = ['api', 'local-cli', 'local-tui', 'acp']
-const VALID_INPUT_MODES: AgentInputMode[] = ['stdin', 'argument', 'prompt-file', 'none']
+const VALID_INPUT_MODES: AgentInputMode[] = ['stdin', 'stdin-json', 'argument', 'prompt-file', 'none']
 const VALID_PROMPT_STRATEGIES: PromptStrategy[] = ['full-inline', 'read-prompt-file', 'read-workspace-files']
 const ID_REGEX = /^[a-z0-9-]+$/
 

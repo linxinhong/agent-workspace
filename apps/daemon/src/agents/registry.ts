@@ -133,11 +133,16 @@ export function getAdapter(id: string): AgentAdapter | null {
   let adapter: AgentAdapter
 
   if (profile.kind === 'acp') {
-    adapter = new AcpAdapter(
-      profile.acpEndpoint ?? '',
-      profile.acpAgentId ?? profile.id,
-      profile.timeoutMs ?? 120_000,
-    )
+    const isStdio = !profile.acpEndpoint || profile.acpEndpoint === 'stdio'
+    adapter = new AcpAdapter({
+      id: profile.id,
+      transport: isStdio ? 'stdio' : 'http-sse',
+      command: profile.command ?? '',
+      args: profile.args ?? [],
+      endpoint: isStdio ? '' : profile.acpEndpoint,
+      acpAgentId: profile.acpAgentId ?? profile.id,
+      timeoutMs: profile.timeoutMs ?? 120_000,
+    })
   } else {
     const config = buildCliConfig(profile)
     adapter = new GenericCliAdapter(config)
