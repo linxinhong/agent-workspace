@@ -95,6 +95,10 @@ const migrations = [
   `ALTER TABLE runs ADD COLUMN result_path TEXT`,
   `ALTER TABLE runs ADD COLUMN timed_out INTEGER DEFAULT 0`,
   `ALTER TABLE runs ADD COLUMN cancelled INTEGER DEFAULT 0`,
+  `ALTER TABLE runs ADD COLUMN approval_required INTEGER DEFAULT 0`,
+  `ALTER TABLE runs ADD COLUMN approval_granted INTEGER DEFAULT 0`,
+  `ALTER TABLE runs ADD COLUMN permissions_snapshot TEXT`,
+  `ALTER TABLE runs ADD COLUMN permissions_hash TEXT`,
 ]
 
 for (const sql of migrations) {

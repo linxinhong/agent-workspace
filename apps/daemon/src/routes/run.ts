@@ -5,7 +5,8 @@ import { z } from 'zod'
 import { loadSkills } from '../skills/skill-loader'
 import { runAgent, type SaveRunData } from '../agent/run-agent'
 import { runCliAgent, type CliSaveRunData } from '../agents/run-cli.js'
-import { getAdapter, getAgent } from '../agents/registry.js'
+import { getAdapter, getAgent, getProfile } from '../agents/registry.js'
+import { hashPermissions } from '../agents/profiles/permissions-hash.js'
 import { db, DEFAULT_PROJECT_ID } from '../storage/db'
 import { goals, runs, messages, artifacts } from '../storage/schema'
 import { buildFileContext } from '../skills/file-context'
@@ -20,6 +21,10 @@ const RunRequestSchema = z.object({
   templateId: z.string().max(200).optional(),
   templateVariables: z.record(z.string(), z.string()).optional(),
   agentId: z.string().max(200).optional(),
+  approval: z.object({
+    approved: z.boolean(),
+    permissionsHash: z.string(),
+  }).optional(),
 })
 
 export const runRoute = new Hono()
@@ -77,6 +82,20 @@ runRoute.post('/api/run', async (c) => {
       return c.json({ error: `Agent "${agentId}" is not available. Is it installed?` }, 400)
     }
 
+    // Approval check
+    const profile = getProfile(agentId)
+    const perms = profile?.permissions
+    const requiresApproval = perms?.requiresApproval ?? false
+    if (requiresApproval) {
+      if (!body.approval?.approved) {
+        return c.json({ error: 'This agent requires approval before execution', requiresApproval: true, permissions: perms }, 403)
+      }
+      const expectedHash = perms ? hashPermissions(perms) : ''
+      if (body.approval.permissionsHash !== expectedHash) {
+        return c.json({ error: 'Permissions have changed, please re-review', requiresApproval: true, permissions: perms }, 403)
+      }
+    }
+
     const saveCliRun = async (data: CliSaveRunData) => {
       db.insert(goals).values({
         id: data.goalId,
@@ -105,6 +124,10 @@ runRoute.post('/api/run', async (c) => {
         resultPath: data.resultPath,
         timedOut: data.timedOut ? 1 : 0,
         cancelled: data.cancelled ? 1 : 0,
+        approvalRequired: requiresApproval ? 1 : 0,
+        approvalGranted: requiresApproval && body.approval?.approved ? 1 : 0,
+        permissionsSnapshot: perms ? JSON.stringify(perms) : null,
+        permissionsHash: perms ? hashPermissions(perms) : null,
       }).run()
 
       for (const msg of data.messages) {

@@ -43,5 +43,22 @@ export function validateAgentProfile(raw: unknown): { valid: boolean; warnings: 
     warnings.push('No capabilities defined')
   }
 
+  if (p.permissions) {
+    if (typeof p.permissions !== 'object') {
+      warnings.push('permissions must be an object')
+    } else {
+      const perms = p.permissions as Record<string, unknown>
+      const boolKeys = ['readProjectFiles', 'writeArtifactFiles', 'writeProjectFiles', 'networkAccess', 'executeCommands', 'requiresApproval']
+      for (const key of boolKeys) {
+        if (perms[key] !== undefined && typeof perms[key] !== 'boolean') {
+          warnings.push(`permissions.${key} must be boolean`)
+        }
+      }
+      if (perms.sendsDataToRemote === true && !perms.remoteEndpoint) {
+        warnings.push('permissions.sendsDataToRemote requires remoteEndpoint')
+      }
+    }
+  }
+
   return { valid: true, warnings }
 }

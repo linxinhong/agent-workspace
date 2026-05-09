@@ -10,6 +10,17 @@ export interface AgentCapabilities {
   ptyRequired?: boolean
 }
 
+export interface AgentPermissions {
+  readProjectFiles: boolean
+  writeArtifactFiles: boolean
+  writeProjectFiles: boolean
+  networkAccess: boolean
+  executeCommands: boolean
+  requiresApproval: boolean
+  sendsDataToRemote?: boolean
+  remoteEndpoint?: string
+}
+
 export interface AgentProfile {
   id: string
   name: string
@@ -25,6 +36,8 @@ export interface AgentProfile {
   timeoutMs?: number
   enabled?: boolean
   capabilities?: AgentCapabilities
+  permissions?: AgentPermissions
   acpEndpoint?: string
   acpAgentId?: string
+  env?: Record<string, string>
 }

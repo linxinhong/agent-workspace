@@ -30,7 +30,7 @@ async function detectCliAgent(profile: AgentProfile): Promise<AgentDescriptor> {
       return {
         id: profile.id, name: profile.name,
         description: profile.description ?? '',
-        kind: 'cli', command, args, detected: false,
+        kind: 'cli', command, args, detected: false, permissions: profile.permissions,
       }
     }
     let version: string | undefined
@@ -43,13 +43,13 @@ async function detectCliAgent(profile: AgentProfile): Promise<AgentDescriptor> {
     return {
       id: profile.id, name: profile.name,
       description: profile.description ?? '',
-      kind: 'cli', command, args, detected: true, version,
+      kind: 'cli', command, args, detected: true, version, permissions: profile.permissions,
     }
   } catch {
     return {
       id: profile.id, name: profile.name,
       description: profile.description ?? '',
-      kind: 'cli', command, args, detected: false,
+      kind: 'cli', command, args, detected: false, permissions: profile.permissions,
     }
   }
 }
@@ -63,6 +63,7 @@ function acpToDescriptor(profile: AgentProfile): AgentDescriptor {
     command: profile.acpEndpoint ?? '',
     args: [],
     detected: true,
+    permissions: profile.permissions,
   }
 }
 
@@ -89,11 +90,11 @@ export function getRegisteredAgents(): AgentDescriptor[] {
       API_AGENT,
       ...cliProfiles.map(p => ({
         id: p.id, name: p.name, description: p.description ?? '',
-        kind: 'cli' as const, command: p.command ?? '', args: p.args ?? [], detected: false,
+        kind: 'cli' as const, command: p.command ?? '', args: p.args ?? [], detected: false, permissions: p.permissions,
       })),
       ...acpProfiles.map(p => ({
         id: p.id, name: p.name, description: p.description ?? '',
-        kind: 'cli' as const, command: p.acpEndpoint ?? '', args: [], detected: true,
+        kind: 'cli' as const, command: p.acpEndpoint ?? '', args: [], detected: true, permissions: p.permissions,
       })),
     ]
   }

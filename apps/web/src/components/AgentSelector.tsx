@@ -60,6 +60,9 @@ export function AgentSelector() {
             {agent.name}
             {agent.version && <span className="ml-1 opacity-60 text-[10px]">{agent.version}</span>}
             {isAcp && <span className="ml-1 opacity-60 text-[10px]">ACP</span>}
+            {profile?.permissions?.requiresApproval && !isApi && (
+              <span className="ml-1 opacity-60 text-[10px]" title="需要确认权限">&#128274;</span>
+            )}
           </button>
         )
       })}

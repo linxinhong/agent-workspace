@@ -18,6 +18,7 @@ export interface CliAdapterConfig {
   inputMode: 'stdin' | 'stdin-json' | 'argument' | 'prompt-file' | 'none'
   outputFormat?: 'text' | 'stream-json'
   timeoutMs: number
+  env?: Record<string, string>
 }
 
 export class GenericCliAdapter implements AgentAdapter {
@@ -36,9 +37,10 @@ export class GenericCliAdapter implements AgentAdapter {
       spawnArgs = [...spawnArgs, input.goal]
     }
 
+    const spawnEnv = { ...sanitizeEnv(), ...this.config.env }
     const proc = spawn(command, spawnArgs, {
       cwd: input.workspaceDir,
-      env: sanitizeEnv(),
+      env: spawnEnv,
       stdio: ['pipe', 'pipe', 'pipe'],
     })
     this.process = proc
@@ -126,37 +128,47 @@ async function* mergeStreams(
     proc.on('exit', (code) => resolve({ code }))
   })
 
-  const results: IteratorResult<string>[] = []
   let exitCode: { code: number | null } | null = null
   let pendingStdout = true
   let pendingStderr = true
   let pendingExit = true
 
+  // Pre-create promises — reuse pending ones to avoid concurrent .next() calls
+  let stdoutP: Promise<{ tag: 'stdout'; r: IteratorResult<string> }> | null =
+    pendingStdout ? stdoutIter.next().then(r => ({ tag: 'stdout' as const, r })) : null
+  let stderrP: Promise<{ tag: 'stderr'; r: IteratorResult<string> }> | null =
+    pendingStderr ? stderrIter.next().then(r => ({ tag: 'stderr' as const, r })) : null
+  let exitP: Promise<{ tag: 'exit'; r: { code: number | null } }> | null =
+    pendingExit ? exitPromise.then(r => ({ tag: 'exit' as const, r })) : null
+
   while (pendingStdout || pendingStderr || pendingExit) {
     const promises: Promise<any>[] = []
-    const tags: string[] = []
-
-    if (pendingStdout) { promises.push(stdoutIter.next().then(r => ({ tag: 'stdout', r }))); tags.push('stdout') }
-    if (pendingStderr) { promises.push(stderrIter.next().then(r => ({ tag: 'stderr', r }))); tags.push('stderr') }
-    if (pendingExit) { promises.push(exitPromise.then(r => ({ tag: 'exit', r }))); tags.push('exit') }
+    if (stdoutP) promises.push(stdoutP)
+    if (stderrP) promises.push(stderrP)
+    if (exitP) promises.push(exitP)
 
     if (promises.length === 0) break
 
     const winner = await Promise.race(promises)
 
     if (winner.tag === 'stdout') {
+      stdoutP = null
       if (winner.r.done) {
         pendingStdout = false
       } else {
         yield { type: 'stdout', text: winner.r.value }
+        stdoutP = stdoutIter.next().then(r => ({ tag: 'stdout' as const, r }))
       }
     } else if (winner.tag === 'stderr') {
+      stderrP = null
       if (winner.r.done) {
         pendingStderr = false
       } else {
         yield { type: 'stderr', text: winner.r.value }
+        stderrP = stderrIter.next().then(r => ({ tag: 'stderr' as const, r }))
       }
     } else if (winner.tag === 'exit') {
+      exitP = null
       exitCode = winner.r
       pendingExit = false
       // Drain remaining stdout/stderr
@@ -252,5 +264,11 @@ function* extractStreamText(obj: Record<string, any>): Generator<string> {
     return
   }
 
-  // Skip: system, content_block_start, content_block_stop, message_start, message_delta, message_stop, etc.
+  // Codex: {"type":"item.completed","item":{"type":"agent_message","text":"..."}}
+  if (t === 'item.completed' && obj.item?.text) {
+    yield obj.item.text
+    return
+  }
+
+  // Skip: system, content_block_start, content_block_stop, thread.started, turn.started, turn.completed, etc.
 }

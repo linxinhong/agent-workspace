@@ -162,6 +162,7 @@ export async function runAgentStream(input: {
   templateId?: string
   templateVariables?: Record<string, string>
   agentId?: string
+  approval?: { approved: boolean; permissionsHash: string }
   onEvent: (event: RunEvent) => void
 }): Promise<void> {
   const res = await fetch('/api/run', {
@@ -170,7 +171,7 @@ export async function runAgentStream(input: {
     body: JSON.stringify({
       goal: input.goal, skillId: input.skillId, projectId: input.projectId,
       fileIds: input.fileIds, templateId: input.templateId, templateVariables: input.templateVariables,
-      agentId: input.agentId,
+      agentId: input.agentId, approval: input.approval,
     }),
   })
 
@@ -208,6 +209,17 @@ export async function fetchAgents(): Promise<AgentDescriptor[]> {
   return res.json()
 }
 
+export interface AgentPermissions {
+  readProjectFiles: boolean
+  writeArtifactFiles: boolean
+  writeProjectFiles: boolean
+  networkAccess: boolean
+  executeCommands: boolean
+  requiresApproval: boolean
+  sendsDataToRemote?: boolean
+  remoteEndpoint?: string
+}
+
 export interface AgentProfileInfo {
   id: string
   name: string
@@ -219,6 +231,8 @@ export interface AgentProfileInfo {
   enabled?: boolean
   acpEndpoint?: string
   acpAgentId?: string
+  permissions?: AgentPermissions
+  permissionsHash?: string
   available: boolean
   warnings: string[]
 }

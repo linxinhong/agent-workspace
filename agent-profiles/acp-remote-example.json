@@ -12,5 +12,15 @@
     "fileEditing": false,
     "supportsNonInteractive": true,
     "ptyRequired": false
+  },
+  "permissions": {
+    "readProjectFiles": true,
+    "writeArtifactFiles": false,
+    "writeProjectFiles": false,
+    "networkAccess": true,
+    "executeCommands": false,
+    "requiresApproval": true,
+    "sendsDataToRemote": true,
+    "remoteEndpoint": "http://localhost:8000"
   }
 }

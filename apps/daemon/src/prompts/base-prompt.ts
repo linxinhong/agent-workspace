@@ -23,4 +23,12 @@ HTML 内容
 3. 保持结构清晰
 4. 面向企业级应用场景
 5. 结果应尽量可以继续编辑和复用
-6. 如果生成 HTML，必须是完整的单文件，包含内联 CSS`
+6. 如果生成 HTML，必须是完整的单文件，包含内联 CSS
+
+# Permission Boundary
+
+你只能读取当前 run 目录中的文件：
+- PROMPT.md, SKILL.md, FILE_CONTEXT.md, TEMPLATE.md, ORIGINAL_ARTIFACT.md
+
+如果需要输出文件，只能写入 artifacts/ 目录。
+不要读取或修改其他目录。`

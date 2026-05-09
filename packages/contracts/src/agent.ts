@@ -31,6 +31,17 @@ export type AgentEvent =
 
 export type AgentKind = 'api' | 'cli'
 
+export interface AgentPermissions {
+  readProjectFiles: boolean
+  writeArtifactFiles: boolean
+  writeProjectFiles: boolean
+  networkAccess: boolean
+  executeCommands: boolean
+  requiresApproval: boolean
+  sendsDataToRemote?: boolean
+  remoteEndpoint?: string
+}
+
 export interface AgentDescriptor {
   id: string
   name: string
@@ -40,4 +51,5 @@ export interface AgentDescriptor {
   args?: string[]
   detected: boolean
   version?: string
+  permissions?: AgentPermissions
 }

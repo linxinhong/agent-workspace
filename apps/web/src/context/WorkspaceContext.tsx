@@ -7,7 +7,7 @@ import {
   fetchTemplates as fetchTemplatesApi, fetchTemplateDetail, renderTemplate,
   fetchAgents, fetchRunDetail, cancelRun as cancelRunApi,
   fetchAgentProfiles,
-  type RunEvent, type RunSummary, type RunDetail, type SkillBrief, type ProjectDetail, type TemplateBrief, type AgentProfileInfo,
+  type RunEvent, type RunSummary, type RunDetail, type SkillBrief, type ProjectDetail, type TemplateBrief, type AgentProfileInfo, type AgentPermissions,
 } from '../services/api'
 
 const LAST_PROJECT_KEY = 'agent-workspace:lastProjectId'
@@ -40,6 +40,7 @@ interface State {
   selectedAgentId: string
   activeRunDetail: RunDetail | null
   currentRunId: string | null
+  pendingApproval: { agentName: string; permissions: AgentPermissions; permissionsHash: string } | null
 }
 
 type Action =
@@ -75,6 +76,8 @@ type Action =
   | { type: 'SELECT_AGENT'; agentId: string }
   | { type: 'SET_ACTIVE_RUN_DETAIL'; detail: RunDetail | null }
   | { type: 'SET_CURRENT_RUN_ID'; runId: string | null }
+  | { type: 'SHOW_APPROVAL'; info: { agentName: string; permissions: AgentPermissions; permissionsHash: string } }
+  | { type: 'CLEAR_APPROVAL' }
 
 const initialState: State = {
   skills: [], selectedSkillId: null, goal: '', messages: [], artifacts: [],
@@ -92,6 +95,7 @@ const initialState: State = {
   selectedAgentId: 'api-default',
   activeRunDetail: null,
   currentRunId: null,
+  pendingApproval: null,
 }
 
 function reducer(state: State, action: Action): State {
@@ -145,6 +149,8 @@ function reducer(state: State, action: Action): State {
     case 'SELECT_AGENT': return { ...state, selectedAgentId: action.agentId }
     case 'SET_ACTIVE_RUN_DETAIL': return { ...state, activeRunDetail: action.detail }
     case 'SET_CURRENT_RUN_ID': return { ...state, currentRunId: action.runId }
+    case 'SHOW_APPROVAL': return { ...state, pendingApproval: action.info }
+    case 'CLEAR_APPROVAL': return { ...state, pendingApproval: null }
   }
 }
 
@@ -175,6 +181,8 @@ interface WorkspaceContextValue {
   openRunDetail: (id: string) => Promise<void>
   closeRunDetail: () => void
   cancelCurrentRun: () => Promise<void>
+  confirmApproval: () => void
+  cancelApproval: () => void
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null)
@@ -208,8 +216,18 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SET_VERSION_CHAIN', artifacts: chain })
   }
 
-  const runAgent = async () => {
+  const runAgent = async (approval?: { approved: boolean; permissionsHash: string }) => {
     if (!state.goal.trim()) return
+
+    // Check if approval is needed
+    if (state.selectedAgentId !== 'api-default' && !approval) {
+      const profile = state.agentProfiles.find(p => p.id === state.selectedAgentId)
+      if (profile?.permissions?.requiresApproval && profile.permissionsHash) {
+        dispatch({ type: 'SHOW_APPROVAL', info: { agentName: profile.name, permissions: profile.permissions, permissionsHash: profile.permissionsHash } })
+        return
+      }
+    }
+
     dispatch({ type: 'START_RUN' })
 
     try {
@@ -219,6 +237,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         projectId: state.currentProjectId ?? undefined,
         fileIds: state.selectedFileIds.length > 0 ? state.selectedFileIds : undefined,
         agentId: state.selectedAgentId !== 'api-default' ? state.selectedAgentId : undefined,
+        approval,
         onEvent: (event: RunEvent) => {
           switch (event.type) {
             case 'start':
@@ -446,6 +465,17 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const confirmApproval = () => {
+    const info = state.pendingApproval
+    if (!info) return
+    dispatch({ type: 'CLEAR_APPROVAL' })
+    runAgent({ approved: true, permissionsHash: info.permissionsHash })
+  }
+
+  const cancelApproval = () => {
+    dispatch({ type: 'CLEAR_APPROVAL' })
+  }
+
   return (
     <WorkspaceContext.Provider value={{
       state, dispatch, loadSkills, loadArtifactHistory, loadRunHistory,
@@ -456,6 +486,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       loadAgents: loadAgentsFn,
       loadAgentProfiles: loadAgentProfilesFn,
       openRunDetail, closeRunDetail, cancelCurrentRun,
+      confirmApproval, cancelApproval,
     }}>
       {children}
     </WorkspaceContext.Provider>

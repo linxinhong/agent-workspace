@@ -10,5 +10,6 @@ export type {
   AgentRunInput,
   AgentEvent,
   AgentKind,
+  AgentPermissions,
   AgentDescriptor,
 } from './agent'

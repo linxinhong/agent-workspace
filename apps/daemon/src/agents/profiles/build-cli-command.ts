@@ -17,5 +17,6 @@ export function buildCliConfig(profile: AgentProfile): CliAdapterConfig {
     inputMode: profile.inputMode ?? 'stdin',
     outputFormat: profile.outputFormat,
     timeoutMs: profile.timeoutMs ?? 120_000,
+    env: profile.env,
   }
 }

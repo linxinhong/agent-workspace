@@ -13,10 +13,11 @@ import { SkillDetail } from './components/SkillDetail'
 import { PromptDebugger } from './components/PromptDebugger'
 import { TemplatePicker, TemplateForm } from './components/TemplatePicker'
 import { AgentSelector } from './components/AgentSelector'
+import { ApprovalDialog } from './components/ApprovalDialog'
 import { RunDetail } from './components/RunDetail'
 
 function AppInner() {
-  const { loadSkills, loadProjects, loadAgents, loadAgentProfiles, state, loadArtifactHistory, loadRunHistory, loadProjectFiles } = useWorkspace()
+  const { loadSkills, loadProjects, loadAgents, loadAgentProfiles, state, loadArtifactHistory, loadRunHistory, loadProjectFiles, confirmApproval, cancelApproval } = useWorkspace()
 
   useEffect(() => {
     loadSkills()
@@ -69,6 +70,15 @@ function AppInner() {
       <PromptDebugger />
       <TemplateForm />
       <RunDetail />
+      {state.pendingApproval && (
+        <ApprovalDialog
+          agentName={state.pendingApproval.agentName}
+          permissions={state.pendingApproval.permissions}
+          permissionsHash={state.pendingApproval.permissionsHash}
+          onConfirm={confirmApproval}
+          onCancel={cancelApproval}
+        />
+      )}
     </div>
   )
 }

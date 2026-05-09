@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { getRegisteredAgents, detectCliAgents, getProfiles, getProfile, invalidateCache } from '../agents/registry.js'
 import { validateAgentProfile } from '../agents/profiles/validate-agent-profile.js'
+import { hashPermissions } from '../agents/profiles/permissions-hash.js'
 
 export const agentsRoute = new Hono()
 
@@ -16,7 +17,8 @@ agentsRoute.get('/api/agent-profiles', async (c) => {
   return c.json(profiles.map(p => {
     const agent = agents.find(a => a.id === p.id)
     const { warnings } = validateAgentProfile(p)
-    return { ...p, available: agent?.detected ?? false, warnings }
+    const permissionsHash = p.permissions ? hashPermissions(p.permissions) : undefined
+    return { ...p, available: agent?.detected ?? false, warnings, permissionsHash }
   }))
 })
 
@@ -26,7 +28,8 @@ agentsRoute.get('/api/agent-profiles/:id', async (c) => {
   const { warnings } = validateAgentProfile(profile)
   const agents = getRegisteredAgents()
   const agent = agents.find(a => a.id === profile.id)
-  return c.json({ ...profile, available: agent?.detected ?? false, warnings })
+  const permissionsHash = profile.permissions ? hashPermissions(profile.permissions) : undefined
+  return c.json({ ...profile, available: agent?.detected ?? false, warnings, permissionsHash })
 })
 
 agentsRoute.post('/api/agent-profiles/reload', async (c) => {

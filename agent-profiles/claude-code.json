@@ -15,5 +15,13 @@
     "fileEditing": true,
     "supportsCwd": true,
     "supportsNonInteractive": true
+  },
+  "permissions": {
+    "readProjectFiles": true,
+    "writeArtifactFiles": true,
+    "writeProjectFiles": true,
+    "networkAccess": true,
+    "executeCommands": true,
+    "requiresApproval": true
   }
 }

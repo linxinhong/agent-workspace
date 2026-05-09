@@ -5,9 +5,15 @@
   "description": "OpenAI Codex CLI — 本地代码生成 Agent",
   "command": "codex",
   "versionArgs": ["--version"],
-  "args": ["exec"],
+  "args": ["exec", "--json"],
   "inputMode": "stdin",
+  "outputFormat": "stream-json",
   "timeoutMs": 120000,
+  "env": {
+    "http_proxy": "http://127.0.0.1:1087",
+    "https_proxy": "http://127.0.0.1:1087",
+    "ALL_PROXY": "socks5://127.0.0.1:1080"
+  },
   "enabled": true,
   "capabilities": {
     "streaming": true,
@@ -16,5 +22,13 @@
     "supportsEnv": true,
     "supportsNonInteractive": true,
     "ptyRequired": false
+  },
+  "permissions": {
+    "readProjectFiles": true,
+    "writeArtifactFiles": true,
+    "writeProjectFiles": false,
+    "networkAccess": true,
+    "executeCommands": true,
+    "requiresApproval": true
   }
 }

@@ -34,6 +34,10 @@ export const runs = sqliteTable('runs', {
   resultPath: text('result_path'),
   timedOut: integer('timed_out').default(0),
   cancelled: integer('cancelled').default(0),
+  approvalRequired: integer('approval_required').default(0),
+  approvalGranted: integer('approval_granted').default(0),
+  permissionsSnapshot: text('permissions_snapshot'),
+  permissionsHash: text('permissions_hash'),
   createdAt: text('created_at').notNull(),
 })
 
