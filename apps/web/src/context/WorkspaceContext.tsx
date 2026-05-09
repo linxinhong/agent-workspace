@@ -1,10 +1,11 @@
 import { createContext, useContext, useReducer, type ReactNode } from 'react'
-import type { Artifact, ArtifactSummary, Project, SkillDetail, WorkspaceFile } from '@agent-workspace/contracts'
+import type { Artifact, ArtifactSummary, ArtifactTemplate, Project, SkillDetail, WorkspaceFile } from '@agent-workspace/contracts'
 import {
   fetchSkills, fetchArtifact, fetchArtifactSummaries, fetchRuns, fetchArtifactVersions,
   runAgentStream, refineArtifactStream, fetchProjects, createProject, deleteProject, fetchProjectDetail,
   fetchProjectFiles, fetchSkillDetail, reloadSkills as reloadSkillsApi, fetchDebugPrompt,
-  type RunEvent, type RunSummary, type SkillBrief, type ProjectDetail,
+  fetchTemplates as fetchTemplatesApi, fetchTemplateDetail, renderTemplate,
+  type RunEvent, type RunSummary, type SkillBrief, type ProjectDetail, type TemplateBrief,
 } from '../services/api'
 
 const LAST_PROJECT_KEY = 'agent-workspace:lastProjectId'
@@ -30,6 +31,8 @@ interface State {
   selectedFileIds: string[]
   activeSkillDetail: SkillDetail | null
   debugMessages: Array<{ role: string; content: string }> | null
+  templates: TemplateBrief[]
+  activeTemplate: ArtifactTemplate | null
 }
 
 type Action =
@@ -58,6 +61,8 @@ type Action =
   | { type: 'CLEAR_FILE_SELECTION' }
   | { type: 'SET_ACTIVE_SKILL_DETAIL'; detail: SkillDetail | null }
   | { type: 'SET_DEBUG_MESSAGES'; messages: Array<{ role: string; content: string }> | null }
+  | { type: 'SET_TEMPLATES'; templates: TemplateBrief[] }
+  | { type: 'SET_ACTIVE_TEMPLATE'; template: ArtifactTemplate | null }
 
 const initialState: State = {
   skills: [], selectedSkillId: null, goal: '', messages: [], artifacts: [],
@@ -68,6 +73,8 @@ const initialState: State = {
   selectedFileIds: [],
   activeSkillDetail: null,
   debugMessages: null,
+  templates: [],
+  activeTemplate: null,
 }
 
 function reducer(state: State, action: Action): State {
@@ -114,6 +121,8 @@ function reducer(state: State, action: Action): State {
     case 'CLEAR_FILE_SELECTION': return { ...state, selectedFileIds: [] }
     case 'SET_ACTIVE_SKILL_DETAIL': return { ...state, activeSkillDetail: action.detail }
     case 'SET_DEBUG_MESSAGES': return { ...state, debugMessages: action.messages }
+    case 'SET_TEMPLATES': return { ...state, templates: action.templates }
+    case 'SET_ACTIVE_TEMPLATE': return { ...state, activeTemplate: action.template }
   }
 }
 
@@ -135,6 +144,10 @@ interface WorkspaceContextValue {
   loadSkillDetail: (id: string) => Promise<void>
   reloadSkills: () => Promise<void>
   debugPrompt: (goal: string) => Promise<void>
+  loadTemplates: () => Promise<void>
+  openTemplate: (id: string) => Promise<void>
+  createFromTemplate: (id: string, variables: Record<string, string>) => Promise<void>
+  runWithTemplate: (id: string, variables: Record<string, string>, goal: string) => Promise<void>
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null)
@@ -304,12 +317,79 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SET_DEBUG_MESSAGES', messages: result.messages })
   }
 
+  const loadTemplatesFn = async () => {
+    const templates = await fetchTemplatesApi()
+    dispatch({ type: 'SET_TEMPLATES', templates })
+  }
+
+  const openTemplate = async (id: string) => {
+    const template = await fetchTemplateDetail(id)
+    dispatch({ type: 'SET_ACTIVE_TEMPLATE', template })
+  }
+
+  const createFromTemplate = async (id: string, variables: Record<string, string>) => {
+    const rendered = await renderTemplate(id, variables)
+    const artifact: Artifact = {
+      id: crypto.randomUUID(),
+      type: rendered.type as Artifact['type'],
+      title: rendered.title,
+      content: rendered.content,
+      createdAt: new Date().toISOString(),
+    }
+    dispatch({ type: 'ADD_ARTIFACT', artifact })
+    dispatch({ type: 'SET_ACTIVE_ARTIFACT', artifact })
+    dispatch({ type: 'PREPEND_ARTIFACT_HISTORY', artifact: { id: artifact.id, type: artifact.type, title: artifact.title, createdAt: artifact.createdAt } })
+    dispatch({ type: 'SET_ACTIVE_TEMPLATE', template: null })
+  }
+
+  const runWithTemplate = async (id: string, variables: Record<string, string>, goal: string) => {
+    dispatch({ type: 'START_RUN' })
+    dispatch({ type: 'SET_ACTIVE_TEMPLATE', template: null })
+    try {
+      await runAgentStream({
+        goal,
+        skillId: state.selectedSkillId ?? undefined,
+        projectId: state.currentProjectId ?? undefined,
+        fileIds: state.selectedFileIds.length > 0 ? state.selectedFileIds : undefined,
+        templateId: id,
+        templateVariables: variables,
+        onEvent: (event: RunEvent) => {
+          switch (event.type) {
+            case 'delta':
+              dispatch({ type: 'APPEND_DELTA', content: event.data.content as string })
+              break
+            case 'artifact': {
+              const aid = event.data.id as string
+              fetchArtifact(aid).then((full) => {
+                dispatch({ type: 'ADD_ARTIFACT', artifact: full })
+                dispatch({ type: 'SET_ACTIVE_ARTIFACT', artifact: full })
+                dispatch({ type: 'PREPEND_ARTIFACT_HISTORY', artifact: { id: full.id, type: full.type, title: full.title, createdAt: full.createdAt } })
+              })
+              break
+            }
+            case 'error':
+              dispatch({ type: 'SET_ERROR', error: event.data.error as string })
+              break
+            case 'done':
+              dispatch({ type: 'FINISH_RUN' })
+              loadArtifactHistory()
+              loadRunHistory()
+              break
+          }
+        },
+      })
+    } catch (err) {
+      dispatch({ type: 'SET_ERROR', error: err instanceof Error ? err.message : 'Unknown error' })
+    }
+  }
+
   return (
     <WorkspaceContext.Provider value={{
       state, dispatch, loadSkills, loadArtifactHistory, loadRunHistory,
       openArtifact, loadVersionChain, runAgent, refineArtifact,
       loadProjects, loadProjectFiles, switchProject, createNewProject, removeProject,
       loadSkillDetail, reloadSkills: reloadSkillsFn, debugPrompt,
+      loadTemplates: loadTemplatesFn, openTemplate, createFromTemplate, runWithTemplate,
     }}>
       {children}
     </WorkspaceContext.Provider>

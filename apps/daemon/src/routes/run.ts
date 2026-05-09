@@ -7,6 +7,7 @@ import { runAgent, type SaveRunData } from '../agent/run-agent'
 import { db, DEFAULT_PROJECT_ID } from '../storage/db'
 import { goals, runs, messages, artifacts } from '../storage/schema'
 import { buildFileContext } from '../skills/file-context'
+import { loadTemplates, renderTemplate } from '../templates/template-loader'
 
 const RunRequestSchema = z.object({
   goal: z.string().min(1).max(8000),
@@ -14,6 +15,8 @@ const RunRequestSchema = z.object({
   model: z.string().max(100).optional(),
   projectId: z.string().max(200).optional(),
   fileIds: z.array(z.string().max(200)).max(10).optional(),
+  templateId: z.string().max(200).optional(),
+  templateVariables: z.record(z.string(), z.string()).optional(),
 })
 
 export const runRoute = new Hono()
@@ -94,6 +97,17 @@ runRoute.post('/api/run', async (c) => {
     ? buildFileContext(body.fileIds, projectId)
     : undefined
 
+  // Load template content if templateId provided
+  let templateContent: string | undefined
+  if (body.templateId) {
+    const templates = await loadTemplates()
+    const template = templates.find(t => t.id === body.templateId)
+    if (template) {
+      const rendered = renderTemplate(template, body.templateVariables ?? {})
+      templateContent = `请基于以下模板内容完成用户目标：\n\n${rendered}`
+    }
+  }
+
   return streamSSE(c, async (stream) => {
     for await (const event of runAgent({
       goal,
@@ -102,6 +116,7 @@ runRoute.post('/api/run', async (c) => {
       providerConfig,
       saveRun,
       fileContext,
+      templateContent,
     })) {
       let data: Record<string, unknown>
       switch (event.type) {

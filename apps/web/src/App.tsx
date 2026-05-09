@@ -11,6 +11,7 @@ import { ProjectOverview } from './components/ProjectOverview'
 import { ProjectFiles } from './components/ProjectFiles'
 import { SkillDetail } from './components/SkillDetail'
 import { PromptDebugger } from './components/PromptDebugger'
+import { TemplatePicker, TemplateForm } from './components/TemplatePicker'
 
 function AppInner() {
   const { loadSkills, loadProjects, state, loadArtifactHistory, loadRunHistory, loadProjectFiles } = useWorkspace()
@@ -37,6 +38,7 @@ function AppInner() {
         <aside className="w-64 border-r flex flex-col bg-white shrink-0">
           <ProjectOverview />
           <ProjectFiles />
+          <TemplatePicker />
           <div className="h-9 border-b border-t flex items-center px-4">
             <span className="text-xs font-medium text-gray-500">Recent Artifacts</span>
           </div>
@@ -60,6 +62,7 @@ function AppInner() {
       </main>
       <SkillDetail />
       <PromptDebugger />
+      <TemplateForm />
     </div>
   )
 }

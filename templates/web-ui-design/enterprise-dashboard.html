@@ -1,0 +1,138 @@
+---
+id: enterprise-dashboard
+name: 企业工作台首页模板
+description: 现代化企业级工作台首页，含数据概览、快捷操作、待办事项
+type: html
+skillId: web-ui-design
+variables:
+  - name: appName
+    label: 应用名称
+    type: text
+    required: true
+    defaultValue: "企业工作台"
+  - name: primaryColor
+    label: 主题色
+    type: select
+    options:
+      - "#1e40af"
+      - "#7c3aed"
+      - "#059669"
+      - "#dc2626"
+      - "#ea580c"
+    defaultValue: "#1e40af"
+  - name: moduleCount
+    label: 功能模块数量
+    type: select
+    options:
+      - "4"
+      - "6"
+      - "8"
+    defaultValue: "6"
+---
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{appName}}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --primary: {{primaryColor}};
+      --primary-light: color-mix(in srgb, var(--primary) 10%, white);
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #1e293b;
+      --text-secondary: #64748b;
+      --border: #e2e8f0;
+      --radius: 12px;
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); }
+    .header { background: var(--primary); color: white; padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; }
+    .header h1 { font-size: 18px; font-weight: 600; }
+    .header-actions { display: flex; gap: 12px; align-items: center; }
+    .header-actions span { font-size: 14px; opacity: 0.9; }
+    .avatar { width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,0.3); display: flex; align-items: center; justify-content: center; font-size: 14px; }
+    .main { max-width: 1200px; margin: 0 auto; padding: 24px 32px; }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+    .stat-card { background: var(--card-bg); border-radius: var(--radius); padding: 20px; border: 1px solid var(--border); }
+    .stat-label { font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; }
+    .stat-value { font-size: 28px; font-weight: 700; color: var(--primary); }
+    .stat-change { font-size: 12px; color: #059669; margin-top: 4px; }
+    .grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+    .card { background: var(--card-bg); border-radius: var(--radius); padding: 20px; border: 1px solid var(--border); }
+    .card-title { font-size: 15px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
+    .card-title a { font-size: 13px; color: var(--primary); text-decoration: none; }
+    .quick-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; }
+    .action-btn { background: var(--primary-light); border: 1px solid transparent; border-radius: 8px; padding: 16px; text-align: center; cursor: pointer; transition: all 0.2s; }
+    .action-btn:hover { border-color: var(--primary); }
+    .action-icon { font-size: 24px; margin-bottom: 6px; }
+    .action-label { font-size: 13px; color: var(--text); }
+    .todo-item { padding: 12px 0; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+    .todo-item:last-child { border-bottom: none; }
+    .todo-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .todo-dot.urgent { background: #dc2626; }
+    .todo-dot.normal { background: #f59e0b; }
+    .todo-dot.low { background: #059669; }
+    .todo-text { flex: 1; font-size: 14px; }
+    .todo-time { font-size: 12px; color: var(--text-secondary); }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>{{appName}}</h1>
+    <div class="header-actions">
+      <span>欢迎回来，管理员</span>
+      <div class="avatar">A</div>
+    </div>
+  </div>
+  <div class="main">
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-label">今日活跃用户</div>
+        <div class="stat-value">1,284</div>
+        <div class="stat-change">+12.5%</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">处理任务数</div>
+        <div class="stat-value">386</div>
+        <div class="stat-change">+8.3%</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">待处理工单</div>
+        <div class="stat-value">24</div>
+        <div class="stat-change" style="color: #dc2626;">-3</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">系统健康度</div>
+        <div class="stat-value">99.2%</div>
+        <div class="stat-change">正常</div>
+      </div>
+    </div>
+
+    <div class="quick-actions">
+      <div class="action-btn"><div class="action-icon">📋</div><div class="action-label">新建工单</div></div>
+      <div class="action-btn"><div class="action-icon">📊</div><div class="action-label">数据报表</div></div>
+      <div class="action-btn"><div class="action-icon">⚙️</div><div class="action-label">系统设置</div></div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="card-title">最近动态 <a href="#">查看全部</a></div>
+        <div class="todo-item"><div class="todo-dot urgent"></div><div class="todo-text">安全告警：异常登录行为检测</div><div class="todo-time">5 分钟前</div></div>
+        <div class="todo-item"><div class="todo-dot normal"></div><div class="todo-text">用户张三提交了权限申请</div><div class="todo-time">15 分钟前</div></div>
+        <div class="todo-item"><div class="todo-dot low"></div><div class="todo-text">系统备份任务已完成</div><div class="todo-time">1 小时前</div></div>
+        <div class="todo-item"><div class="todo-dot normal"></div><div class="todo-text">月度安全扫描报告已生成</div><div class="todo-time">2 小时前</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">待办事项 <a href="#">全部</a></div>
+        <div class="todo-item"><div class="todo-dot urgent"></div><div class="todo-text">审核新员工入职申请</div><div class="todo-time">截止今天</div></div>
+        <div class="todo-item"><div class="todo-dot urgent"></div><div class="todo-text">处理高危安全告警</div><div class="todo-time">截止今天</div></div>
+        <div class="todo-item"><div class="todo-dot normal"></div><div class="todo-text">更新防火墙规则</div><div class="todo-time">截止明天</div></div>
+        <div class="todo-item"><div class="todo-dot low"></div><div class="todo-text">编写月度运维报告</div><div class="todo-time">本周内</div></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

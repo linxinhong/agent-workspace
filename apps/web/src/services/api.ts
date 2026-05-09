@@ -1,4 +1,4 @@
-import type { Artifact, ArtifactType, ArtifactSummary, Project, SkillDetail, SkillWarning, WorkspaceFile } from '@agent-workspace/contracts'
+import type { Artifact, ArtifactType, ArtifactSummary, ArtifactTemplate, Project, SkillDetail, SkillWarning, WorkspaceFile } from '@agent-workspace/contracts'
 
 export interface SkillBrief {
   id: string
@@ -159,12 +159,17 @@ export async function runAgentStream(input: {
   skillId?: string
   projectId?: string
   fileIds?: string[]
+  templateId?: string
+  templateVariables?: Record<string, string>
   onEvent: (event: RunEvent) => void
 }): Promise<void> {
   const res = await fetch('/api/run', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ goal: input.goal, skillId: input.skillId, projectId: input.projectId, fileIds: input.fileIds }),
+    body: JSON.stringify({
+      goal: input.goal, skillId: input.skillId, projectId: input.projectId,
+      fileIds: input.fileIds, templateId: input.templateId, templateVariables: input.templateVariables,
+    }),
   })
 
   if (!res.ok) {
@@ -217,6 +222,36 @@ export async function fetchDebugPrompt(params: {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
+  })
+  if (!res.ok) { const err = await res.json(); throw new Error(err.error ?? `HTTP ${res.status}`) }
+  return res.json()
+}
+
+export interface TemplateBrief {
+  id: string
+  name: string
+  description?: string
+  type: ArtifactType
+  skillId?: string
+  variableCount: number
+}
+
+export async function fetchTemplates(): Promise<TemplateBrief[]> {
+  const res = await fetch('/api/templates')
+  return res.json()
+}
+
+export async function fetchTemplateDetail(id: string): Promise<ArtifactTemplate> {
+  const res = await fetch(`/api/templates/${id}`)
+  if (!res.ok) throw new Error('Template not found')
+  return res.json()
+}
+
+export async function renderTemplate(id: string, variables: Record<string, string>): Promise<{ type: string; title: string; content: string }> {
+  const res = await fetch(`/api/templates/${id}/render`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ variables }),
   })
   if (!res.ok) { const err = await res.json(); throw new Error(err.error ?? `HTTP ${res.status}`) }
   return res.json()
