@@ -50,7 +50,7 @@ export function ProjectFiles() {
               className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
             />
             <span className="text-xs text-gray-700 truncate flex-1">{f.name}</span>
-            <button onClick={() => handleDelete(f.id)} className="text-xs text-gray-400 hover:text-red-500">x</button>
+            <button onClick={() => handleDelete(f.id)} className="text-xs text-red-400 hover:text-red-600">&times;</button>
           </div>
         ))}
       </div>
