@@ -2,19 +2,18 @@
   "id": "claude-code",
   "name": "Claude Code",
   "kind": "local-cli",
-  "description": "Anthropic Claude Code CLI — 支持 --print 非交互模式",
+  "description": "Anthropic Claude Code CLI — stream-json 模式",
   "command": "claude",
   "versionArgs": ["--version"],
-  "args": ["--print", "--output-format", "text"],
-  "inputMode": "stdin",
+  "args": ["--print", "--verbose", "--output-format", "stream-json"],
+  "inputMode": "argument",
+  "outputFormat": "stream-json",
   "timeoutMs": 120000,
   "enabled": true,
   "capabilities": {
     "streaming": true,
     "fileEditing": true,
     "supportsCwd": true,
-    "supportsEnv": true,
-    "supportsNonInteractive": true,
-    "ptyRequired": false
+    "supportsNonInteractive": true
   }
 }

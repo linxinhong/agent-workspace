@@ -200,38 +200,57 @@ async function* parseStreamJson(source: AsyncIterable<string>): AsyncIterable<st
       if (!trimmed) continue
       try {
         const obj = JSON.parse(trimmed)
-        // Extract text from kimi stream-json output formats
-        if (obj.role === 'assistant' && Array.isArray(obj.content)) {
-          for (const part of obj.content) {
-            if (part.type === 'text' && typeof part.text === 'string') {
-              yield part.text
-            }
-          }
-        } else if (obj.type === 'text' && typeof obj.text === 'string') {
-          yield obj.text
-        } else if (obj.type === 'notification' && typeof obj.message === 'string') {
-          yield obj.message
-        }
-        // Skip ToolCall, ToolResult, PlanDisplay, etc.
+        yield* extractStreamText(obj)
       } catch {
-        // Not JSON — forward as-is
         yield trimmed
       }
     }
   }
-  // Flush remaining
   if (buffer.trim()) {
     try {
-      const obj = JSON.parse(buffer.trim())
-      if (obj.role === 'assistant' && Array.isArray(obj.content)) {
-        for (const part of obj.content) {
-          if (part.type === 'text' && typeof part.text === 'string') yield part.text
-        }
-      } else if (obj.type === 'text' && typeof obj.text === 'string') {
-        yield obj.text
-      }
+      yield* extractStreamText(JSON.parse(buffer.trim()))
     } catch {
       yield buffer.trim()
     }
   }
+}
+
+function* extractStreamText(obj: Record<string, any>): Generator<string> {
+  const t = obj.type
+
+  // Claude Code: {"type":"assistant","message":{"content":[{"type":"text","text":"..."}]}}
+  if (t === 'assistant' && obj.message?.content) {
+    for (const part of obj.message.content) {
+      if (part.type === 'text' && typeof part.text === 'string') yield part.text
+    }
+    return
+  }
+
+  // Claude Code: {"type":"content_block_delta","delta":{"type":"text_delta","text":"..."}}
+  if (t === 'content_block_delta' && obj.delta?.text) {
+    yield obj.delta.text
+    return
+  }
+
+  // Kimi Code: {"role":"assistant","content":[{"type":"text","text":"..."}]}
+  if (obj.role === 'assistant' && Array.isArray(obj.content)) {
+    for (const part of obj.content) {
+      if (part.type === 'text' && typeof part.text === 'string') yield part.text
+    }
+    return
+  }
+
+  // Kimi Code: {"type":"text","text":"..."}
+  if (t === 'text' && typeof obj.text === 'string') {
+    yield obj.text
+    return
+  }
+
+  // Kimi Code: {"type":"notification","message":"..."}
+  if (t === 'notification' && typeof obj.message === 'string') {
+    yield obj.message
+    return
+  }
+
+  // Skip: system, content_block_start, content_block_stop, message_start, message_delta, message_stop, etc.
 }
