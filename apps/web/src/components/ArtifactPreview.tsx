@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useWorkspace } from '../context/WorkspaceContext'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { HtmlSandbox } from './HtmlSandbox'
+import { InlineEditPopover } from './InlineEditPopover'
 import { copyToClipboard, downloadArtifact } from '../utils/artifact-export'
 import { createArtifactVersion, fetchArtifactVersions } from '../services/api'
 import type { Artifact } from '@agent-workspace/contracts'
@@ -36,6 +37,17 @@ export function ArtifactPreview() {
   const [editContent, setEditContent] = useState('')
   const [editNote, setEditNote] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+
+  // Inline AI Edit state
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [inlineSelection, setInlineSelection] = useState<{
+    text: string
+    start: number
+    end: number
+    beforeContext: string
+    afterContext: string
+  } | null>(null)
+  const [showInlineEdit, setShowInlineEdit] = useState(false)
 
   const current = state.activeArtifact
     ?? (state.artifacts.length > 0 ? state.artifacts[activeIndex] ?? state.artifacts[0] : null)
@@ -81,6 +93,8 @@ export function ArtifactPreview() {
     setEditTitle('')
     setEditContent('')
     setEditNote('')
+    setShowInlineEdit(false)
+    setInlineSelection(null)
   }
 
   const handleSaveVersion = async () => {
@@ -103,6 +117,32 @@ export function ArtifactPreview() {
     } finally {
       setIsSaving(false)
     }
+  }
+
+  const handleTextSelect = () => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    if (start === end) {
+      setInlineSelection(null)
+      return
+    }
+    const selectedText = editContent.substring(start, end)
+    const beforeContext = editContent.substring(Math.max(0, start - 1500), start)
+    const afterContext = editContent.substring(end, Math.min(editContent.length, end + 1500))
+    setInlineSelection({ text: selectedText, start, end, beforeContext, afterContext })
+  }
+
+  const handleInlineReplace = (replacement: string) => {
+    if (!inlineSelection) return
+    const newContent =
+      editContent.substring(0, inlineSelection.start) +
+      replacement +
+      editContent.substring(inlineSelection.end)
+    setEditContent(newContent)
+    setShowInlineEdit(false)
+    setInlineSelection(null)
   }
 
   const versionChain = state.activeVersionChain
@@ -227,11 +267,32 @@ export function ArtifactPreview() {
                 className="text-sm border rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
               <textarea
+                ref={textareaRef}
                 value={editContent}
                 onChange={e => setEditContent(e.target.value)}
+                onSelect={handleTextSelect}
                 className="flex-1 text-sm font-mono border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none min-h-0"
                 spellCheck={false}
               />
+              {inlineSelection && !showInlineEdit && (
+                <button
+                  onClick={() => setShowInlineEdit(true)}
+                  className="self-end text-xs px-2 py-1 rounded bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200"
+                >
+                  AI Edit
+                </button>
+              )}
+              {showInlineEdit && inlineSelection && current && (
+                <InlineEditPopover
+                  selectedText={inlineSelection.text}
+                  beforeContext={inlineSelection.beforeContext}
+                  afterContext={inlineSelection.afterContext}
+                  artifactId={current.id}
+                  artifactType={current.type}
+                  onReplace={handleInlineReplace}
+                  onCancel={() => { setShowInlineEdit(false) }}
+                />
+              )}
               <input
                 value={editNote}
                 onChange={e => setEditNote(e.target.value)}

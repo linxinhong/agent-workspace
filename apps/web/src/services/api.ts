@@ -292,7 +292,7 @@ export interface RunDetail {
   projectId: string | null
   createdAt: string
   messages: Array<{ id: string; role: string; content: string; createdAt: string }>
-  artifacts: ArtifactSummary[]
+  artifacts: Array<ArtifactSummary & { source?: string; sourcePath?: string }>
   agentId: string | null
   agentKind: string | null
   command: string | null
@@ -344,5 +344,29 @@ export async function renderTemplate(id: string, variables: Record<string, strin
     body: JSON.stringify({ variables }),
   })
   if (!res.ok) { const err = await res.json(); throw new Error(err.error ?? `HTTP ${res.status}`) }
+  return res.json()
+}
+
+export async function inlineEditArtifact(input: {
+  artifactId: string
+  selectedText: string
+  instruction: string
+  beforeContext?: string
+  afterContext?: string
+}): Promise<{ replacement: string }> {
+  const res = await fetch(`/api/artifacts/${input.artifactId}/inline-edit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      selectedText: input.selectedText,
+      instruction: input.instruction,
+      beforeContext: input.beforeContext,
+      afterContext: input.afterContext,
+    }),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    try { const err = JSON.parse(text); throw new Error(err.error ?? `HTTP ${res.status}`) } catch (e) { if (e instanceof Error && e.message !== `HTTP ${res.status}`) throw e; throw new Error(text || `HTTP ${res.status}`) }
+  }
   return res.json()
 }

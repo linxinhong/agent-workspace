@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { UserGoal, Skill, Artifact, AgentEvent } from '@agent-workspace/contracts'
 import { composeMessages, composeRefineMessages } from '../prompts/compose-prompt'
+import { buildInlineEditMessages } from '../prompts/inline-edit-prompt'
 import { runOpenAI, type OpenAIProviderConfig } from '../providers/openai-compatible'
 import { parseArtifacts } from '../artifacts/parse-artifact'
 
@@ -93,6 +94,52 @@ export async function* runAgent(deps: RunAgentDeps): AsyncGenerator<AgentEvent> 
   })
 
   yield { type: 'done' }
+}
+
+export async function runInlineEdit(deps: {
+  artifactType: string
+  selectedText: string
+  instruction: string
+  beforeContext?: string
+  afterContext?: string
+  model: string
+  providerConfig: OpenAIProviderConfig
+}): Promise<{ replacement: string }> {
+  const messages = buildInlineEditMessages({
+    artifactType: deps.artifactType,
+    selectedText: deps.selectedText,
+    instruction: deps.instruction,
+    beforeContext: deps.beforeContext,
+    afterContext: deps.afterContext,
+  })
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 30_000)
+
+  let fullText = ''
+  try {
+    for await (const delta of runOpenAI(
+      { messages, model: deps.model },
+      deps.providerConfig,
+      controller.signal,
+    )) {
+      fullText += delta
+      if (fullText.length > 10_000) {
+        throw new Error('输出超过最大长度限制 (10KB)')
+      }
+    }
+  } finally {
+    clearTimeout(timeout)
+  }
+
+  // Post-process: strip accidental code fences
+  let replacement = fullText.trim()
+  const fenceMatch = replacement.match(/^```[\w]*\n?([\s\S]*?)\n?```$/)
+  if (fenceMatch) {
+    replacement = fenceMatch[1].trim()
+  }
+
+  return { replacement }
 }
 
 export async function* runRefine(deps: {

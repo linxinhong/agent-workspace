@@ -7,6 +7,7 @@ export interface CliAdapterConfig {
   inputMode: AgentInputMode
   outputFormat?: 'text' | 'stream-json'
   timeoutMs: number
+  env?: Record<string, string>
 }
 
 export function buildCliConfig(profile: AgentProfile): CliAdapterConfig {

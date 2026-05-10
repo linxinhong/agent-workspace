@@ -5,11 +5,15 @@ export type ArtifactType =
   | 'mermaid'
   | 'react'
 
+export type ArtifactSource = 'inline' | 'file' | 'manual' | 'template' | 'refine' | 'fallback'
+
 export interface Artifact {
   id: string
   type: ArtifactType
   title: string
   content: string
+  source?: ArtifactSource
+  sourcePath?: string
   parentArtifactId?: string
   version?: number
   changeNote?: string

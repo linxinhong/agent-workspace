@@ -22,6 +22,12 @@ const statusConfig: Record<string, { label: string; color: string }> = {
   timeout: { label: 'Timeout', color: 'bg-orange-100 text-orange-700' },
 }
 
+const sourceConfig: Record<string, { label: string; color: string }> = {
+  file: { label: 'file', color: 'bg-emerald-50 text-emerald-600' },
+  inline: { label: 'inline', color: 'bg-blue-50 text-blue-600' },
+  fallback: { label: 'fallback', color: 'bg-gray-100 text-gray-500' },
+}
+
 export function RunDetail() {
   const { state, closeRunDetail, openArtifact } = useWorkspace()
   const [viewingFile, setViewingFile] = useState<string | null>(null)
@@ -151,16 +157,25 @@ export function RunDetail() {
             <div>
               <div className="text-xs font-medium text-gray-500 mb-1">Artifacts</div>
               <div className="space-y-1">
-                {run.artifacts.map((a) => (
-                  <button
-                    key={a.id}
-                    onClick={() => { openArtifact(a.id); closeRunDetail() }}
-                    className="flex items-center gap-2 w-full text-left px-2 py-1 rounded hover:bg-blue-50 text-xs"
-                  >
-                    <span className="text-blue-600">{a.title ?? 'untitled'}</span>
-                    <span className="text-gray-300">{a.type}</span>
-                  </button>
-                ))}
+                {run.artifacts.map((a) => {
+                  const src = a.source ? sourceConfig[a.source] : null
+                  return (
+                    <button
+                      key={a.id}
+                      onClick={() => { openArtifact(a.id); closeRunDetail() }}
+                      className="flex items-center gap-2 w-full text-left px-2 py-1 rounded hover:bg-blue-50 text-xs"
+                    >
+                      <span className="text-blue-600">{a.title ?? 'untitled'}</span>
+                      <span className="text-gray-300">{a.type}</span>
+                      {src && (
+                        <span className={`text-[10px] px-1 py-0.5 rounded ${src.color}`}>{src.label}</span>
+                      )}
+                      {a.sourcePath && (
+                        <span className="text-gray-400 font-mono text-[10px]">{a.sourcePath}</span>
+                      )}
+                    </button>
+                  )
+                })}
               </div>
             </div>
           )}

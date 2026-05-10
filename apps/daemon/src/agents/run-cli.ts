@@ -25,7 +25,7 @@ export interface CliSaveRunData {
   skillId?: string
   model: string
   messages: Array<{ role: string; content: string }>
-  artifacts: Array<{ id: string; type: string; title: string; content: string; createdAt: string }>
+  artifacts: Array<{ id: string; type: string; title: string; content: string; source?: string; sourcePath?: string; createdAt: string }>
   fullText: string
   agentId: string
   command: string
@@ -38,8 +38,6 @@ export interface CliSaveRunData {
   timedOut: boolean
   cancelled: boolean
 }
-
-const SKIP_FILES = new Set(['PROMPT.md', 'SKILL.md', 'FILE_CONTEXT.md', 'TEMPLATE.md', 'stdout.log', 'stderr.log', 'result.json'])
 
 export async function* runCliAgent(deps: CliRunDeps): AsyncGenerator<AgentEvent> {
   const goalId = randomUUID()
@@ -137,19 +135,23 @@ export async function* runCliAgent(deps: CliRunDeps): AsyncGenerator<AgentEvent>
 
   const durationMs = Date.now() - startedAt
 
-  // Parse artifacts from stdout
-  let parsedArtifacts = parseArtifacts(fullText)
+  // 1. Scan artifacts/ directory first (file artifacts take priority)
+  const fileArtifacts = scanArtifactFiles(workspaceDir)
+
+  // 2. Parse inline artifacts from stdout
+  let inlineArtifacts = parseArtifacts(fullText)
 
   // No artifact fallback
-  if (parsedArtifacts.length === 0 && fullText.trim()) {
-    parsedArtifacts = [{
+  if (fileArtifacts.length === 0 && inlineArtifacts.length === 0 && fullText.trim()) {
+    inlineArtifacts = [{
       id: randomUUID(),
       type: 'markdown' as const,
       title: 'Agent Output',
       content: fullText,
+      source: 'fallback' as const,
       createdAt: new Date().toISOString(),
     }]
-  } else if (parsedArtifacts.length === 0 && !fullText.trim() && stderr.trim()) {
+  } else if (fileArtifacts.length === 0 && inlineArtifacts.length === 0 && !fullText.trim() && stderr.trim()) {
     // stdout empty, stderr has content → error, no artifact
     await writeResultAndSave(deps, {
       goalId, workspaceDir, stdoutPath, stderrPath, resultPath,
@@ -160,18 +162,24 @@ export async function* runCliAgent(deps: CliRunDeps): AsyncGenerator<AgentEvent>
     return
   }
 
-  // Scan workspace for additional artifact files
-  const fileArtifacts = scanWorkspaceArtifacts(workspaceDir)
-  parsedArtifacts = [...parsedArtifacts, ...fileArtifacts]
+  // Mark inline artifacts with source
+  for (const a of inlineArtifacts) {
+    if (!a.source) a.source = 'inline'
+  }
 
-  for (const artifact of parsedArtifacts) {
+  // Merge: file artifacts first, then inline (deduplicate by title)
+  const fileTitles = new Set(fileArtifacts.map(a => a.title))
+  const inlineDeduped = inlineArtifacts.filter(a => !fileTitles.has(a.title))
+  const allArtifacts = [...fileArtifacts, ...inlineDeduped]
+
+  for (const artifact of allArtifacts) {
     yield { type: 'artifact', artifact: artifact as Artifact }
   }
 
   await writeResultAndSave(deps, {
     goalId, workspaceDir, stdoutPath, stderrPath, resultPath,
     fullText, stderr, exitCode, durationMs, timedOut, cancelled, startedAt,
-    artifacts: parsedArtifacts, status: 'completed',
+    artifacts: allArtifacts, status: 'completed',
   })
 
   yield { type: 'done' }
@@ -192,7 +200,7 @@ async function writeResultAndSave(
     timedOut: boolean
     cancelled: boolean
     startedAt: number
-    artifacts: Array<{ id: string; type: string; title: string; content: string; createdAt: string }>
+    artifacts: Array<{ id: string; type: string; title: string; content: string; source?: string; sourcePath?: string; createdAt: string }>
     status: string
   },
 ) {
@@ -226,6 +234,8 @@ async function writeResultAndSave(
       type: a.type,
       title: a.title,
       content: a.content,
+      source: a.source,
+      sourcePath: a.sourcePath,
       createdAt: a.createdAt,
     })),
     fullText: info.fullText,
@@ -242,32 +252,44 @@ async function writeResultAndSave(
   })
 }
 
-function scanWorkspaceArtifacts(workspaceDir: string): Artifact[] {
-  const artifacts: Artifact[] = []
-  try {
-    const entries = readdirSync(workspaceDir)
-    for (const entry of entries) {
-      if (SKIP_FILES.has(entry)) continue
+const EXT_TYPE_MAP: Record<string, string> = {
+  md: 'markdown',
+  html: 'html',
+  htm: 'html',
+  json: 'json',
+  mmd: 'mermaid',
+  tsx: 'react',
+  txt: 'markdown',
+}
 
-      const filePath = join(workspaceDir, entry)
+function scanArtifactFiles(workspaceDir: string): Artifact[] {
+  const results: Artifact[] = []
+  const artifactsDir = join(workspaceDir, 'artifacts')
+  try {
+    const entries = readdirSync(artifactsDir)
+    for (const entry of entries) {
+      const filePath = join(artifactsDir, entry)
       const stat = statSync(filePath)
       if (!stat.isFile()) continue
       if (stat.size > 1_000_000) continue
 
-      const content = readFileSync(filePath, 'utf-8')
-      const ext = entry.split('.').pop()?.toLowerCase()
-      let type: string = 'markdown'
-      if (ext === 'html' || ext === 'htm') type = 'html'
-      else if (ext === 'json') type = 'json'
+      const ext = entry.split('.').pop()?.toLowerCase() ?? ''
+      const type = EXT_TYPE_MAP[ext]
+      if (!type) continue
 
-      artifacts.push({
+      const content = readFileSync(filePath, 'utf-8')
+      const title = entry.replace(/\.[^.]+$/, '')
+
+      results.push({
         id: randomUUID(),
         type: type as any,
-        title: entry,
+        title,
         content,
+        source: 'file',
+        sourcePath: `artifacts/${entry}`,
         createdAt: new Date().toISOString(),
       })
     }
-  } catch { /* workspace scan is best-effort */ }
-  return artifacts
+  } catch { /* best effort */ }
+  return results
 }

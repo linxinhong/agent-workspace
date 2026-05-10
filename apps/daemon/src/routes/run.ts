@@ -148,6 +148,8 @@ runRoute.post('/api/run', async (c) => {
           type: artifact.type,
           title: artifact.title,
           content: artifact.content,
+          source: artifact.source,
+          sourcePath: artifact.sourcePath,
           projectId,
           createdAt: artifact.createdAt,
         }).run()

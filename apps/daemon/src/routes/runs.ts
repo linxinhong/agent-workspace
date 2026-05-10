@@ -60,13 +60,15 @@ runsRoute.get('/api/runs/:id', async (c) => {
       id: artifacts.id,
       type: artifacts.type,
       title: artifacts.title,
+      source: artifacts.source,
+      sourcePath: artifacts.sourcePath,
       createdAt: artifacts.createdAt,
     })
     .from(artifacts)
     .where(eq(artifacts.runId, id))
     .all()
 
-  // Build materialized files list from cwd
+  // Build materialized files list from cwd (including artifacts/ subdirectory)
   let materializedFiles: Array<{ name: string; size: number; kind: string }> = []
   if (run.cwd) {
     try {
@@ -74,12 +76,25 @@ runsRoute.get('/api/runs/:id', async (c) => {
       for (const entry of entries) {
         const filePath = join(run.cwd!, entry)
         const stat = statSync(filePath)
-        if (!stat.isFile()) continue
-        materializedFiles.push({
-          name: entry,
-          size: stat.size,
-          kind: MATERIAL_FILE_MAP[entry] ?? 'other',
-        })
+        if (stat.isFile()) {
+          materializedFiles.push({
+            name: entry,
+            size: stat.size,
+            kind: MATERIAL_FILE_MAP[entry] ?? 'other',
+          })
+        } else if (stat.isDirectory() && entry === 'artifacts') {
+          const artEntries = readdirSync(filePath)
+          for (const artEntry of artEntries) {
+            const artPath = join(filePath, artEntry)
+            const artStat = statSync(artPath)
+            if (!artStat.isFile()) continue
+            materializedFiles.push({
+              name: `artifacts/${artEntry}`,
+              size: artStat.size,
+              kind: 'artifact',
+            })
+          }
+        }
       }
     } catch { /* best effort */ }
   }

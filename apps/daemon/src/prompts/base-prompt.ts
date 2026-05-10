@@ -30,5 +30,15 @@ HTML 内容
 你只能读取当前 run 目录中的文件：
 - PROMPT.md, SKILL.md, FILE_CONTEXT.md, TEMPLATE.md, ORIGINAL_ARTIFACT.md
 
-如果需要输出文件，只能写入 artifacts/ 目录。
-不要读取或修改其他目录。`
+# Output Directory
+
+如果你需要输出文件，请写入 artifacts/ 目录。支持的文件类型：
+- artifacts/report.md → markdown 文档
+- artifacts/index.html → HTML 页面（必须完整单文件，包含内联 CSS）
+- artifacts/data.json → JSON 数据
+- artifacts/diagram.mmd → Mermaid 图表
+- artifacts/App.tsx → React 组件
+- artifacts/notes.txt → 纯文本（按 markdown 处理）
+
+系统会自动把 artifacts/ 中的文件登记为 Artifact。
+不要修改项目其他目录，不要覆盖用户上传的原始文件。`

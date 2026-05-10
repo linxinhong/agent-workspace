@@ -7,13 +7,20 @@ import { db } from '../storage/db'
 import { artifacts, goals, runs, messages as messagesTable } from '../storage/schema'
 import { loadSkills } from '../skills/skill-loader'
 import { buildFileContext } from '../skills/file-context'
-import { runRefine } from '../agent/run-agent'
+import { runRefine, runInlineEdit } from '../agent/run-agent'
 import type { Artifact } from '@agent-workspace/contracts'
 
 const RefineRequestSchema = z.object({
   instruction: z.string().min(1).max(4000),
   skillId: z.string().min(1).max(100).optional(),
   fileIds: z.array(z.string().max(200)).max(10).optional(),
+})
+
+const InlineEditRequestSchema = z.object({
+  selectedText: z.string().min(1).max(50000),
+  instruction: z.string().min(1).max(2000),
+  beforeContext: z.string().max(5000).optional(),
+  afterContext: z.string().max(5000).optional(),
 })
 
 export const artifactsRoute = new Hono()
@@ -247,4 +254,46 @@ artifactsRoute.post('/api/artifacts/:id/refine', async (c) => {
       await stream.writeSSE({ event: event.type, data: JSON.stringify(data) })
     }
   })
+})
+
+artifactsRoute.post('/api/artifacts/:id/inline-edit', async (c) => {
+  const id = c.req.param('id')
+  const raw = await c.req.json()
+  const parsed = InlineEditRequestSchema.safeParse(raw)
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues.map(i => i.message).join(', ') }, 400)
+  }
+  const body = parsed.data
+
+  const artifact = db.select().from(artifacts).where(eq(artifacts.id, id)).get()
+  if (!artifact) {
+    return c.json({ error: 'Artifact not found' }, 404)
+  }
+
+  const providerConfig = {
+    apiKey: process.env.PROVIDER_API_KEY ?? '',
+    baseUrl: process.env.PROVIDER_BASE_URL ?? 'https://api.openai.com/v1',
+  }
+
+  if (!providerConfig.apiKey) {
+    return c.json({ error: 'PROVIDER_API_KEY is not configured' }, 500)
+  }
+
+  const model = process.env.PROVIDER_DEFAULT_MODEL ?? 'gpt-4.1'
+
+  try {
+    const result = await runInlineEdit({
+      artifactType: artifact.type,
+      selectedText: body.selectedText,
+      instruction: body.instruction,
+      beforeContext: body.beforeContext,
+      afterContext: body.afterContext,
+      model,
+      providerConfig,
+    })
+    return c.json(result)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Inline edit failed'
+    return c.json({ error: message }, 500)
+  }
 })

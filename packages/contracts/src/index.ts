@@ -1,6 +1,6 @@
 export type { UserGoal } from './goal'
 export type { Skill, SkillDetail, SkillWarning } from './skill'
-export type { Artifact, ArtifactType, ArtifactSummary } from './artifact'
+export type { Artifact, ArtifactType, ArtifactSummary, ArtifactSource } from './artifact'
 export type { Project } from './project'
 export type { WorkspaceFile } from './file'
 export type { ArtifactTemplate, TemplateVariable } from './template'

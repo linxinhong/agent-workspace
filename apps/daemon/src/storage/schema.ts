@@ -56,6 +56,8 @@ export const artifacts = sqliteTable('artifacts', {
   type: text('type').notNull(),
   title: text('title'),
   content: text('content').notNull(),
+  source: text('source'),
+  sourcePath: text('source_path'),
   parentArtifactId: text('parent_artifact_id'),
   version: integer('version').default(1),
   changeNote: text('change_note'),

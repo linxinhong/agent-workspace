@@ -43,5 +43,7 @@ export function materializeWorkspace(params: MaterializeParams): string {
     writeFileSync(join(runDir, 'TEMPLATE.md'), templateContent, 'utf-8')
   }
 
+  mkdirSync(join(runDir, 'artifacts'), { recursive: true })
+
   return runDir
 }
