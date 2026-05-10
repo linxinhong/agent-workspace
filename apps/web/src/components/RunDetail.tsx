@@ -184,6 +184,9 @@ export function RunDetail() {
                     >
                       <span className="text-blue-600">{a.title ?? 'untitled'}</span>
                       <span className="text-gray-300">{a.type}</span>
+                      {a.type === 'bundle' && (
+                        <span className="text-[10px] px-1 py-0.5 rounded bg-violet-50 text-violet-600">bundle</span>
+                      )}
                       {src && (
                         <span className={`text-[10px] px-1 py-0.5 rounded ${src.color}`}>{src.label}</span>
                       )}

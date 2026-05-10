@@ -5,7 +5,7 @@ import type { AgentEvent, Skill, Artifact } from '@agent-workspace/contracts'
 import type { AgentAdapter, AgentRunInput } from './types.js'
 import { materializeWorkspace } from './materialize.js'
 import { parseArtifacts } from '../artifacts/parse-artifact.js'
-import { scanArtifactFiles } from '../artifacts/scan-artifact-files.js'
+import { scanArtifactFiles, scanArtifactBundle } from '../artifacts/scan-artifact-files.js'
 import { BASE_PROMPT } from '../prompts/base-prompt.js'
 import { stripAnsi } from './ansi.js'
 import { registerActiveRun, unregisterActiveRun } from './active-runs.js'
@@ -136,17 +136,31 @@ export async function* runCliAgent(deps: CliRunDeps): AsyncGenerator<AgentEvent>
 
   const durationMs = Date.now() - startedAt
 
-  // 1. Scan artifacts/ directory first (file artifacts take priority)
-  const scannedFiles = scanArtifactFiles(workspaceDir)
-  const fileArtifacts: Artifact[] = scannedFiles.map(f => ({
-    id: randomUUID(),
-    type: f.type,
-    title: f.title,
-    content: f.content,
-    source: 'file' as const,
-    sourcePath: f.relativePath,
-    createdAt: new Date().toISOString(),
-  }))
+  // 1. Scan artifacts/ directory — bundle or individual files
+  const bundle = scanArtifactBundle(workspaceDir)
+  let fileArtifacts: Artifact[]
+  if (bundle) {
+    fileArtifacts = [{
+      id: randomUUID(),
+      type: 'bundle' as const,
+      title: bundle.title,
+      content: JSON.stringify(bundle.manifest),
+      source: 'file' as const,
+      sourcePath: 'artifacts/',
+      createdAt: new Date().toISOString(),
+    }]
+  } else {
+    const scannedFiles = scanArtifactFiles(workspaceDir)
+    fileArtifacts = scannedFiles.map(f => ({
+      id: randomUUID(),
+      type: f.type,
+      title: f.title,
+      content: f.content,
+      source: 'file' as const,
+      sourcePath: f.relativePath,
+      createdAt: new Date().toISOString(),
+    }))
+  }
 
   // 2. Parse inline artifacts from stdout
   let inlineArtifacts = parseArtifacts(fullText)

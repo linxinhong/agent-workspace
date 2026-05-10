@@ -4,8 +4,19 @@ export type ArtifactType =
   | 'json'
   | 'mermaid'
   | 'react'
+  | 'bundle'
 
 export type ArtifactSource = 'stdout' | 'file' | 'manual' | 'template' | 'refine' | 'fallback' | 'inline-edit'
+
+export interface ArtifactBundleManifest {
+  entry?: string
+  files: Array<{
+    path: string
+    type: string
+    size: number
+    content: string
+  }>
+}
 
 export interface Artifact {
   id: string

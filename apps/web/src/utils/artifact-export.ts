@@ -38,7 +38,17 @@ export async function copyToClipboard(content: string): Promise<boolean> {
   }
 }
 
-export function downloadArtifact(artifact: { type: string; title: string; content: string }): void {
+export function downloadArtifact(artifact: { id: string; type: string; title: string; content: string }): void {
+  if (artifact.type === 'bundle') {
+    const filename = sanitizeFilename(artifact.title) + '.zip'
+    const url = `/api/artifacts/${artifact.id}/export?format=zip`
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.click()
+    return
+  }
+
   const ext = getArtifactExtension(artifact.type)
   const mime = getArtifactMimeType(artifact.type)
   const filename = sanitizeFilename(artifact.title) + ext

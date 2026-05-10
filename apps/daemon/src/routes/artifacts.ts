@@ -2,6 +2,8 @@ import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import { eq, desc } from 'drizzle-orm'
 import { randomUUID } from 'node:crypto'
+import archiver from 'archiver'
+import { Readable } from 'node:stream'
 import { z } from 'zod'
 import { db } from '../storage/db'
 import { artifacts, goals, runs, messages as messagesTable } from '../storage/schema'
@@ -91,8 +93,29 @@ const SANITIZE_RE = /[<>:"/\\|?*\x00-\x1f]/g
 
 artifactsRoute.get('/api/artifacts/:id/export', async (c) => {
   const id = c.req.param('id')
+  const format = c.req.query('format')
   const artifact = db.select().from(artifacts).where(eq(artifacts.id, id)).get()
   if (!artifact) return c.json({ error: 'Artifact not found' }, 404)
+
+  // Bundle zip export
+  if (artifact.type === 'bundle' && format === 'zip') {
+    let manifest: { entry?: string; files: Array<{ path: string; content: string }> }
+    try { manifest = JSON.parse(artifact.content) } catch { return c.json({ error: 'Invalid bundle manifest' }, 500) }
+
+    const filename = (artifact.title ?? 'bundle').replace(SANITIZE_RE, '').replace(/\s+/g, '_').slice(0, 100) || 'bundle'
+    const archive = archiver('zip', { zlib: { level: 6 } })
+    for (const f of manifest.files) {
+      archive.append(Readable.from([f.content]), { name: f.path })
+    }
+    archive.finalize()
+
+    return new Response(archive as any, {
+      headers: {
+        'Content-Type': 'application/zip',
+        'Content-Disposition': `attachment; filename="${filename}.zip"`,
+      },
+    })
+  }
 
   const ext = EXPORT_EXT[artifact.type] ?? '.txt'
   const mime = EXPORT_MIME[artifact.type] ?? 'text/plain'

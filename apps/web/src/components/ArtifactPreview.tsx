@@ -3,11 +3,19 @@ import { useWorkspace } from '../context/WorkspaceContext'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { HtmlSandbox } from './HtmlSandbox'
 import { InlineEditPopover } from './InlineEditPopover'
+import { BundlePreview } from './BundlePreview'
 import { copyToClipboard, downloadArtifact } from '../utils/artifact-export'
 import { createArtifactVersion, fetchArtifactVersions } from '../services/api'
-import type { Artifact } from '@agent-workspace/contracts'
+import type { Artifact, ArtifactBundleManifest } from '@agent-workspace/contracts'
 
 function ArtifactView({ artifact }: { artifact: Artifact }) {
+  if (artifact.type === 'bundle') {
+    let manifest: ArtifactBundleManifest | null = null
+    try { manifest = JSON.parse(artifact.content) } catch { /* ignore */ }
+    if (!manifest) return <pre className="p-4 text-sm text-gray-800">Invalid bundle manifest</pre>
+    return <BundlePreview manifest={manifest} />
+  }
+
   if (artifact.type === 'html') {
     return <HtmlSandbox content={artifact.content} />
   }
