@@ -24,7 +24,11 @@ const statusConfig: Record<string, { label: string; color: string }> = {
 
 const sourceConfig: Record<string, { label: string; color: string }> = {
   file: { label: 'file', color: 'bg-emerald-50 text-emerald-600' },
-  inline: { label: 'inline', color: 'bg-blue-50 text-blue-600' },
+  stdout: { label: 'stdout', color: 'bg-blue-50 text-blue-600' },
+  refine: { label: 'refine', color: 'bg-purple-50 text-purple-600' },
+  'inline-edit': { label: 'inline-edit', color: 'bg-amber-50 text-amber-600' },
+  manual: { label: 'manual', color: 'bg-orange-50 text-orange-600' },
+  template: { label: 'template', color: 'bg-teal-50 text-teal-600' },
   fallback: { label: 'fallback', color: 'bg-gray-100 text-gray-500' },
 }
 
@@ -114,21 +118,34 @@ export function RunDetail() {
             <div>
               <div className="text-xs font-medium text-gray-500 mb-1">Files</div>
               <div className="space-y-1">
-                {run.materializedFiles.map((f) => (
-                  <div key={f.name}>
-                    <button
-                      onClick={() => handleViewFile(f.name)}
-                      className="flex items-center gap-2 w-full text-left px-2 py-1 rounded hover:bg-gray-50 text-xs"
-                    >
-                      <span className="text-gray-500 font-mono">{f.name}</span>
-                      <span className="text-gray-300">{formatBytes(f.size)}</span>
-                      <span className="text-[10px] px-1 py-0.5 rounded bg-gray-100 text-gray-500">{f.kind}</span>
-                    </button>
-                    {viewingFile === f.name && (
-                      <pre className="text-xs bg-gray-900 text-gray-100 rounded p-3 mt-1 max-h-64 overflow-y-auto whitespace-pre-wrap font-mono">{fileContent}</pre>
-                    )}
-                  </div>
-                ))}
+                {run.materializedFiles.map((f) => {
+                  const artifactMatch = f.kind === 'artifact'
+                    ? run.artifacts.find(a => a.sourcePath === f.name)
+                    : null
+                  const ext = f.name.split('.').pop()?.toLowerCase() ?? ''
+                  const typeMap: Record<string, string> = { md: 'markdown', html: 'html', htm: 'html', json: 'json', mmd: 'mermaid', tsx: 'react', txt: 'text' }
+                  const artifactType = f.kind === 'artifact' ? (typeMap[ext] ?? 'file') : null
+
+                  return (
+                    <div key={f.name}>
+                      <button
+                        onClick={() => artifactMatch ? (openArtifact(artifactMatch.id), closeRunDetail()) : handleViewFile(f.name)}
+                        className="flex items-center gap-2 w-full text-left px-2 py-1 rounded hover:bg-gray-50 text-xs"
+                      >
+                        <span className="text-gray-500 font-mono">{f.name}</span>
+                        <span className="text-gray-300">{formatBytes(f.size)}</span>
+                        {artifactType ? (
+                          <span className="text-[10px] px-1 py-0.5 rounded bg-blue-50 text-blue-600">{artifactType}</span>
+                        ) : (
+                          <span className="text-[10px] px-1 py-0.5 rounded bg-gray-100 text-gray-500">{f.kind}</span>
+                        )}
+                      </button>
+                      {viewingFile === f.name && !artifactMatch && (
+                        <pre className="text-xs bg-gray-900 text-gray-100 rounded p-3 mt-1 max-h-64 overflow-y-auto whitespace-pre-wrap font-mono">{fileContent}</pre>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}

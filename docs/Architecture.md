@@ -37,7 +37,7 @@ Project 1:N Artifact
 | Skill Loader | `daemon/src/skills/skill-loader.ts` | 扫描 SKILL.md，缓存，校验 |
 | Template Loader | `daemon/src/templates/template-loader.ts` | 扫描模板文件，变量替换 |
 | Artifact Parser | `daemon/src/artifacts/parse-artifact.ts` | 从 LLM 输出中提取 `<artifact>` 标签 |
-| Artifact File Scanner | `daemon/src/agents/run-cli.ts` | 扫描 `artifacts/` 目录，合并文件来源和内联来源 |
+| Artifact File Scanner | `daemon/src/artifacts/scan-artifact-files.ts` | 扫描 `artifacts/` 目录，返回 `ScannedArtifactFile[]` |
 | File Context | `daemon/src/skills/file-context.ts` | 从 DB 加载文件内容，格式化为 Prompt |
 | Provider | `daemon/src/providers/openai-compatible.ts` | 原生 fetch 调用 OpenAI 兼容 API，SSE 解析 |
 | Agent Profiles | `daemon/src/agents/profiles/` | Agent 配置加载、权限管理、CLI/ACP 适配器 |

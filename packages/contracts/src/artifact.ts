@@ -5,7 +5,7 @@ export type ArtifactType =
   | 'mermaid'
   | 'react'
 
-export type ArtifactSource = 'inline' | 'file' | 'manual' | 'template' | 'refine' | 'fallback'
+export type ArtifactSource = 'stdout' | 'file' | 'manual' | 'template' | 'refine' | 'fallback' | 'inline-edit'
 
 export interface Artifact {
   id: string

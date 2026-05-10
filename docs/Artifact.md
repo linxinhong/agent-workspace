@@ -41,7 +41,7 @@ interface Artifact {
   parentArtifactId?: string  // 父版本 ID
   version?: number           // 版本号
   changeNote?: string        // 变更说明
-  source?: ArtifactSource    // 来源：inline | file | manual | template | refine | fallback
+  source?: ArtifactSource    // 来源：stdout | file | manual | template | refine | fallback | inline-edit
   sourcePath?: string        // 文件来源路径
   createdAt: string
 }
@@ -76,9 +76,21 @@ v1 (id:A) → v2 (id:B, parentArtifactId:A) → v3 (id:C, parentArtifactId:B)
 Agent 输出的 Artifact 有两种来源：
 
 1. **文件层**：Agent 写入工作区 `artifacts/` 目录的文件，系统扫描并注册为 Artifact（`source: 'file'`）
-2. **内联层**：从 LLM 输出中解析 `<artifact>` 标签生成的 Artifact（`source: 'inline'`）
+2. **内联层**：从 LLM 输出中解析 `<artifact>` 标签生成的 Artifact（`source: 'stdout'`）
 
-合并优先级：file > inline > fallback，按 title 去重。
+合并优先级：file > stdout > fallback，按 title 去重。
+
+### Source 类型
+
+| Source | 说明 |
+|--------|------|
+| `stdout` | 从 Agent stdout 解析的 `<artifact>` 标签 |
+| `file` | 从 `artifacts/` 目录扫描的文件 |
+| `refine` | AI Refine 创建的新版本 |
+| `inline-edit` | Inline AI Edit 后保存的新版本 |
+| `manual` | 手动编辑保存的新版本 |
+| `template` | 从模板生成的 Artifact |
+| `fallback` | 无 `<artifact>` 标签时，stdout 全文作为 fallback |
 
 支持的文件类型：`.md`, `.html`, `.htm`, `.json`, `.mmd`, `.tsx`, `.txt`
 

@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto'
-import { appendFileSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { AgentEvent, Skill, Artifact } from '@agent-workspace/contracts'
 import type { AgentAdapter, AgentRunInput } from './types.js'
 import { materializeWorkspace } from './materialize.js'
 import { parseArtifacts } from '../artifacts/parse-artifact.js'
+import { scanArtifactFiles } from '../artifacts/scan-artifact-files.js'
 import { BASE_PROMPT } from '../prompts/base-prompt.js'
 import { stripAnsi } from './ansi.js'
 import { registerActiveRun, unregisterActiveRun } from './active-runs.js'
@@ -136,7 +137,16 @@ export async function* runCliAgent(deps: CliRunDeps): AsyncGenerator<AgentEvent>
   const durationMs = Date.now() - startedAt
 
   // 1. Scan artifacts/ directory first (file artifacts take priority)
-  const fileArtifacts = scanArtifactFiles(workspaceDir)
+  const scannedFiles = scanArtifactFiles(workspaceDir)
+  const fileArtifacts: Artifact[] = scannedFiles.map(f => ({
+    id: randomUUID(),
+    type: f.type,
+    title: f.title,
+    content: f.content,
+    source: 'file' as const,
+    sourcePath: f.relativePath,
+    createdAt: new Date().toISOString(),
+  }))
 
   // 2. Parse inline artifacts from stdout
   let inlineArtifacts = parseArtifacts(fullText)
@@ -164,7 +174,7 @@ export async function* runCliAgent(deps: CliRunDeps): AsyncGenerator<AgentEvent>
 
   // Mark inline artifacts with source
   for (const a of inlineArtifacts) {
-    if (!a.source) a.source = 'inline'
+    if (!a.source) a.source = 'stdout'
   }
 
   // Merge: file artifacts first, then inline (deduplicate by title)
@@ -250,46 +260,4 @@ async function writeResultAndSave(
     timedOut: info.timedOut,
     cancelled: info.cancelled,
   })
-}
-
-const EXT_TYPE_MAP: Record<string, string> = {
-  md: 'markdown',
-  html: 'html',
-  htm: 'html',
-  json: 'json',
-  mmd: 'mermaid',
-  tsx: 'react',
-  txt: 'markdown',
-}
-
-function scanArtifactFiles(workspaceDir: string): Artifact[] {
-  const results: Artifact[] = []
-  const artifactsDir = join(workspaceDir, 'artifacts')
-  try {
-    const entries = readdirSync(artifactsDir)
-    for (const entry of entries) {
-      const filePath = join(artifactsDir, entry)
-      const stat = statSync(filePath)
-      if (!stat.isFile()) continue
-      if (stat.size > 1_000_000) continue
-
-      const ext = entry.split('.').pop()?.toLowerCase() ?? ''
-      const type = EXT_TYPE_MAP[ext]
-      if (!type) continue
-
-      const content = readFileSync(filePath, 'utf-8')
-      const title = entry.replace(/\.[^.]+$/, '')
-
-      results.push({
-        id: randomUUID(),
-        type: type as any,
-        title,
-        content,
-        source: 'file',
-        sourcePath: `artifacts/${entry}`,
-        createdAt: new Date().toISOString(),
-      })
-    }
-  } catch { /* best effort */ }
-  return results
 }

@@ -114,6 +114,7 @@ export async function createArtifactVersion(id: string, data: {
   content: string
   title?: string
   changeNote?: string
+  source?: string
 }): Promise<Artifact> {
   const res = await fetch(`/api/artifacts/${id}/versions`, {
     method: 'POST',

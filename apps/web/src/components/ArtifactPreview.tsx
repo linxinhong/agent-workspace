@@ -53,6 +53,7 @@ export function ArtifactPreview() {
     afterContext: string
   } | null>(null)
   const [showInlineEdit, setShowInlineEdit] = useState(false)
+  const [editSource, setEditSource] = useState<string | undefined>(undefined)
 
   const current = state.activeArtifact
     ?? (state.artifacts.length > 0 ? state.artifacts[activeIndex] ?? state.artifacts[0] : null)
@@ -132,6 +133,7 @@ export function ArtifactPreview() {
     setEditTab('edit')
     setIsEditing(true)
     setShowRefine(false)
+    setEditSource(undefined)
   }
 
   const handleCancelEdit = () => {
@@ -142,6 +144,7 @@ export function ArtifactPreview() {
       setEditNote('')
       setShowInlineEdit(false)
       setInlineSelection(null)
+      setEditSource(undefined)
       clearDraft()
     })
   }
@@ -154,6 +157,7 @@ export function ArtifactPreview() {
         content: editContent,
         title: editTitle !== current.title ? editTitle : undefined,
         changeNote: editNote || undefined,
+        source: editSource,
       })
       dispatch({ type: 'SET_ACTIVE_ARTIFACT', artifact: newArtifact })
       dispatch({ type: 'PREPEND_ARTIFACT_HISTORY', artifact: { id: newArtifact.id, type: newArtifact.type, title: newArtifact.title, createdAt: newArtifact.createdAt } })
@@ -191,6 +195,7 @@ export function ArtifactPreview() {
       replacement +
       editContent.substring(inlineSelection.end)
     setEditContent(newContent)
+    setEditSource('inline-edit')
     setShowInlineEdit(false)
     setInlineSelection(null)
   }

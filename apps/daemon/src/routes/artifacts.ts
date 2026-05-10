@@ -109,6 +109,7 @@ const CreateVersionSchema = z.object({
   content: z.string().min(1),
   title: z.string().min(1).max(500).optional(),
   changeNote: z.string().max(1000).optional(),
+  source: z.string().max(50).optional(),
 })
 
 artifactsRoute.post('/api/artifacts/:id/versions', async (c) => {
@@ -147,6 +148,7 @@ artifactsRoute.post('/api/artifacts/:id/versions', async (c) => {
     parentArtifactId: id,
     version: newVersion,
     changeNote: body.changeNote,
+    source: body.source,
     projectId: original.projectId,
     createdAt: now,
   }).run()
@@ -212,10 +214,10 @@ artifactsRoute.post('/api/artifacts/:id/refine', async (c) => {
         content: artifact.content,
         parentArtifactId: artifact.parentArtifactId,
         version: artifact.version,
+        source: 'refine',
         projectId: original.projectId,
         createdAt: artifact.createdAt,
-      }).run()
-    }
+      }).run()    }
   }
 
   // Load file context if fileIds provided
