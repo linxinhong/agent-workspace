@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useWorkspace } from '../context/WorkspaceContext'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { HtmlSandbox } from './HtmlSandbox'
@@ -24,7 +24,12 @@ function ArtifactView({ artifact }: { artifact: Artifact }) {
 }
 
 export function ArtifactPreview() {
-  const { state, dispatch, refineArtifact, openArtifact } = useWorkspace()
+  const { state, dispatch, refineArtifact, openArtifact: rawOpenArtifact } = useWorkspace()
+
+  const openArtifact = (id: string) => {
+    if (isDirty && !window.confirm('有未保存的修改，确认离开？')) return
+    rawOpenArtifact(id)
+  }
   const [activeIndex, setActiveIndex] = useState(0)
   const [showRefine, setShowRefine] = useState(false)
   const [refineInput, setRefineInput] = useState('')
@@ -51,6 +56,26 @@ export function ArtifactPreview() {
 
   const current = state.activeArtifact
     ?? (state.artifacts.length > 0 ? state.artifacts[activeIndex] ?? state.artifacts[0] : null)
+
+  const isDirty = isEditing && !!current && (editContent !== current.content || editTitle !== (current.title ?? ''))
+  const draftKey = current ? `artifact-draft:${current.id}` : ''
+
+  useEffect(() => {
+    if (!isEditing || !isDirty || !draftKey) return
+    const timer = setTimeout(() => {
+      localStorage.setItem(draftKey, JSON.stringify({
+        title: editTitle,
+        content: editContent,
+        changeNote: editNote,
+        updatedAt: new Date().toISOString(),
+      }))
+    }, 1000)
+    return () => clearTimeout(timer)
+  }, [editTitle, editContent, editNote, isEditing, isDirty, draftKey])
+
+  const clearDraft = () => {
+    if (draftKey) localStorage.removeItem(draftKey)
+  }
 
   if (!current) {
     return (
@@ -80,21 +105,45 @@ export function ArtifactPreview() {
   }
 
   const handleStartEdit = () => {
-    setEditTitle(current.title ?? '')
-    setEditContent(current.content)
-    setEditNote('')
+    const saved = draftKey ? localStorage.getItem(draftKey) : null
+    if (saved) {
+      try {
+        const draft = JSON.parse(saved)
+        if (window.confirm('检测到未保存草稿，是否恢复？')) {
+          setEditTitle(draft.title)
+          setEditContent(draft.content)
+          setEditNote(draft.changeNote ?? '')
+        } else {
+          clearDraft()
+          setEditTitle(current.title ?? '')
+          setEditContent(current.content)
+          setEditNote('')
+        }
+      } catch {
+        setEditTitle(current.title ?? '')
+        setEditContent(current.content)
+        setEditNote('')
+      }
+    } else {
+      setEditTitle(current.title ?? '')
+      setEditContent(current.content)
+      setEditNote('')
+    }
     setEditTab('edit')
     setIsEditing(true)
     setShowRefine(false)
   }
 
   const handleCancelEdit = () => {
-    setIsEditing(false)
-    setEditTitle('')
-    setEditContent('')
-    setEditNote('')
-    setShowInlineEdit(false)
-    setInlineSelection(null)
+    confirmIfDirty(() => {
+      setIsEditing(false)
+      setEditTitle('')
+      setEditContent('')
+      setEditNote('')
+      setShowInlineEdit(false)
+      setInlineSelection(null)
+      clearDraft()
+    })
   }
 
   const handleSaveVersion = async () => {
@@ -111,6 +160,7 @@ export function ArtifactPreview() {
       // Refresh version chain
       const chain = await fetchArtifactVersions(newArtifact.id)
       dispatch({ type: 'SET_VERSION_CHAIN', artifacts: chain })
+      clearDraft()
       setIsEditing(false)
     } catch (err) {
       dispatch({ type: 'SET_ERROR', error: err instanceof Error ? err.message : 'Save failed' })
@@ -145,6 +195,11 @@ export function ArtifactPreview() {
     setInlineSelection(null)
   }
 
+  const confirmIfDirty = (action: () => void) => {
+    if (isDirty && !window.confirm('有未保存的修改，确认放弃？')) return
+    action()
+  }
+
   const versionChain = state.activeVersionChain
   const activeInChain = versionChain.length > 0
     ? versionChain.findIndex(v => v.id === current.id)
@@ -160,6 +215,7 @@ export function ArtifactPreview() {
         <span className="text-xs text-gray-400">{current.type}</span>
         <span className="text-xs text-gray-400">&middot;</span>
         <span className="text-xs text-gray-400">v{versionNum}</span>
+        {isDirty && <span className="text-xs text-amber-500 font-medium">Unsaved</span>}
 
         <div className="ml-auto flex items-center gap-1">
           <button

@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
+import { parseDiffFromFile } from '@pierre/diffs'
+import { FileDiff } from '@pierre/diffs/react'
 import { inlineEditArtifact } from '../services/api'
 
 interface InlineEditPopoverProps {
@@ -24,6 +26,18 @@ export function InlineEditPopover({
   const [isGenerating, setIsGenerating] = useState(false)
   const [replacement, setReplacement] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  const fileDiff = useMemo(() => {
+    if (replacement === null) return null
+    try {
+      return parseDiffFromFile(
+        { name: 'original', contents: selectedText },
+        { name: 'suggested', contents: replacement },
+      )
+    } catch {
+      return null
+    }
+  }, [selectedText, replacement])
 
   const handleGenerate = async () => {
     if (!instruction.trim() || isGenerating) return
@@ -65,15 +79,21 @@ export function InlineEditPopover({
 
       {replacement !== null ? (
         <>
-          <div className="space-y-2">
-            <div>
-              <div className="text-[10px] font-medium text-gray-400 mb-0.5">Original</div>
-              <pre className="text-xs bg-white border rounded p-2 max-h-24 overflow-y-auto whitespace-pre-wrap">{selectedText}</pre>
-            </div>
-            <div>
-              <div className="text-[10px] font-medium text-blue-500 mb-0.5">Suggested</div>
-              <pre className="text-xs bg-blue-50 border border-blue-200 rounded p-2 max-h-24 overflow-y-auto whitespace-pre-wrap">{replacement}</pre>
-            </div>
+          <div className="border rounded overflow-hidden max-h-64 overflow-y-auto">
+            {fileDiff ? (
+              <FileDiff
+                fileDiff={fileDiff}
+                options={{
+                  diffStyle: 'unified',
+                  diffIndicators: 'classic',
+                  lineDiffType: 'word-alt',
+                  disableFileHeader: true,
+                  disableLineNumbers: true,
+                }}
+              />
+            ) : (
+              <pre className="text-xs bg-blue-50 p-2 whitespace-pre-wrap">{replacement}</pre>
+            )}
           </div>
           <div className="flex gap-2">
             <button
