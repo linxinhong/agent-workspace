@@ -41,6 +41,8 @@ interface Artifact {
   parentArtifactId?: string  // 父版本 ID
   version?: number           // 版本号
   changeNote?: string        // 变更说明
+  source?: ArtifactSource    // 来源：inline | file | manual | template | refine | fallback
+  sourcePath?: string        // 文件来源路径
   createdAt: string
 }
 ```
@@ -64,9 +66,21 @@ v1 (id:A) → v2 (id:B, parentArtifactId:A) → v3 (id:C, parentArtifactId:B)
 | Preview | 按 type 渲染预览 |
 | Copy | 复制 content 到剪贴板 |
 | Download | 按 type 确定扩展名，触发浏览器下载 |
-| Edit | 进入编辑模式，修改 title/content |
+| Edit | 进入编辑模式，修改 title/content，带未保存提示和草稿恢复 |
+| Inline AI Edit | 编辑模式下选中文本 → AI 生成替换 → diff 预览 → 确认替换 |
 | Refine | AI 辅助修改，输入修改要求 |
 | Export | 后端 `GET /api/artifacts/:id/export` |
+
+## 文件来源（两层模型）
+
+Agent 输出的 Artifact 有两种来源：
+
+1. **文件层**：Agent 写入工作区 `artifacts/` 目录的文件，系统扫描并注册为 Artifact（`source: 'file'`）
+2. **内联层**：从 LLM 输出中解析 `<artifact>` 标签生成的 Artifact（`source: 'inline'`）
+
+合并优先级：file > inline > fallback，按 title 去重。
+
+支持的文件类型：`.md`, `.html`, `.htm`, `.json`, `.mmd`, `.tsx`, `.txt`
 
 ## 文件扩展名映射
 

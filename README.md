@@ -9,11 +9,15 @@
 - **File Context** — 上传文件作为 Agent 上下文
 - **Artifact Preview** — Markdown/HTML 实时预览
 - **Artifact Refine** — AI 辅助修改 Artifact
+- **Inline AI Edit** — 选中文本 → AI 生成替换 → diff 预览 → 确认替换
 - **Artifact Versioning** — 版本链追踪，可回溯任意版本
-- **Artifact Editor** — 源码级编辑，保存为新版本
+- **Artifact Editor** — 源码级编辑，未保存提示 + 草稿自动恢复
+- **Agent Adapters** — 支持 CLI（Claude Code、Kimi Code）和 ACP 协议
+- **Agent Permissions** — 权限审批流程，安全管控
 - **Templates** — 带变量的模板系统，一键生成或 Agent 优化
 - **Export & Delivery** — 复制、下载、后端导出
 - **Prompt Debugger** — 预览最终组装的 Prompt，调试 Skill 效果
+- **Run Observability** — Run 详情、输出文件、stdout/stderr 预览
 
 ## Quick Start
 
@@ -68,18 +72,12 @@ docs/              # 文档
 .workspace/        # SQLite 数据库 + 上传文件（gitignore）
 ```
 
-## MVP Roadmap
+## Release History
 
-| 版本 | 内容 | 状态 |
-|------|------|------|
-| MVP-1 | 核心生成链路（Goal → Agent → Artifact） | Done |
-| MVP-2 | Artifact 追踪、版本、Refine | Done |
-| MVP-3 | Project Workspace | Done |
-| MVP-4 | File Context | Done |
-| MVP-5 | Skill Workspace（详情/调试/校验） | Done |
-| MVP-6 | Export & Delivery | Done |
-| MVP-7 | Artifact Editor | Done |
-| MVP-8 | Artifact Templates | Done |
+| 版本 | 内容 |
+|------|------|
+| v0.2.0 | Inline AI Edit + diff 预览、Agent 适配器 + 权限审批、标准化 Artifact 输出、编辑器未保存保护 + 草稿恢复 |
+| v0.1.0 | 核心生成链路、Artifact 版本/Refine、Project/Skill/File Workspace、Editor、Templates、Export |
 
 ## License
 

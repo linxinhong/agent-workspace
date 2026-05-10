@@ -69,12 +69,50 @@ SSE 事件类型：
 | GET | `/api/artifacts/:id/export` | 导出下载 |
 | POST | `/api/artifacts/:id/versions` | 手动创建新版本 |
 | POST | `/api/artifacts/:id/refine` | AI Refine（SSE 流式） |
+| POST | `/api/artifacts/:id/inline-edit` | AI 局部替换（JSON） |
+
+### Inline Edit
+
+```json
+POST /api/artifacts/:id/inline-edit
+{
+  "selectedText": "选中的文本",
+  "instruction": "修改要求",
+  "beforeContext": "前文上下文（可选）",
+  "afterContext": "后文上下文（可选）"
+}
+
+→ 200 { "replacement": "替换后的文本" }
+→ 400 { "error": "selectedText and instruction are required" }
+→ 404 { "error": "Artifact not found" }
+```
 
 ## Runs
 
 | 方法 | 端点 | 说明 |
 |------|------|------|
 | GET | `/api/runs?projectId=&limit=` | Run 列表 |
+| GET | `/api/runs/:id` | Run 详情（含 messages、artifacts、materializedFiles） |
+| GET | `/api/runs/:id/files/:name` | 获取 Run 输出文件 |
+| POST | `/api/runs/:id/cancel` | 取消正在执行的 Run |
+
+## Agents
+
+| 方法 | 端点 | 说明 |
+|------|------|------|
+| GET | `/api/agents` | Agent 描述列表 |
+| GET | `/api/agent-profiles` | Agent 配置详情（含权限、warnings） |
+| POST | `/api/agent-profiles/reload` | 重新加载 Agent 配置 |
+
+Run 请求中的 `agentId` 和 `approval` 字段：
+
+```json
+{
+  "goal": "...",
+  "agentId": "agent-name",
+  "approval": { "approved": true, "permissionsHash": "..." }
+}
+```
 
 ## Debug
 
