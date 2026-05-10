@@ -1,10 +1,10 @@
-export function HtmlSandbox({ content }: { content: string }) {
+export function HtmlSandbox({ content, allowScripts = false }: { content: string; allowScripts?: boolean }) {
   return (
     <iframe
-      sandbox="allow-scripts"
+      sandbox={allowScripts ? 'allow-scripts' : ''}
       srcDoc={content}
       className="w-full h-full border-0"
-      title="Artifact Preview"
+      title="Artifact 预览"
     />
   )
 }

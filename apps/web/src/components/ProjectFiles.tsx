@@ -3,15 +3,15 @@ import { useWorkspace } from '../context/WorkspaceContext'
 import { uploadFile, deleteFile } from '../services/api'
 
 export function ProjectFiles() {
-  const { state, dispatch } = useWorkspace()
+  const { state, dispatch, loadProjectFiles } = useWorkspace()
   const inputRef = useRef<HTMLInputElement>(null)
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || !state.currentProjectId) return
     try {
-      const result = await uploadFile(state.currentProjectId, file)
-      dispatch({ type: 'ADD_FILE', file: { id: result.id, projectId: state.currentProjectId, name: file.name, mimeType: file.type, size: file.size, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() } })
+      await uploadFile(state.currentProjectId, file)
+      await loadProjectFiles()
     } catch (err) {
       dispatch({ type: 'SET_ERROR', error: err instanceof Error ? err.message : 'Upload failed' })
     }
@@ -19,8 +19,12 @@ export function ProjectFiles() {
   }
 
   const handleDelete = async (id: string) => {
-    await deleteFile(id)
-    dispatch({ type: 'REMOVE_FILE', fileId: id })
+    try {
+      await deleteFile(id)
+      dispatch({ type: 'REMOVE_FILE', fileId: id })
+    } catch (err) {
+      dispatch({ type: 'SET_ERROR', error: err instanceof Error ? err.message : 'Delete failed' })
+    }
   }
 
   const toggleSelect = (id: string) => {

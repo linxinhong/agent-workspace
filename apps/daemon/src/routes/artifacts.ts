@@ -2,7 +2,6 @@ import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import { eq, desc } from 'drizzle-orm'
 import { randomUUID } from 'node:crypto'
-import archiver from 'archiver'
 import { Readable } from 'node:stream'
 import { z } from 'zod'
 import { db } from '../storage/db'
@@ -103,7 +102,13 @@ artifactsRoute.get('/api/artifacts/:id/export', async (c) => {
     try { manifest = JSON.parse(artifact.content) } catch { return c.json({ error: 'Invalid bundle manifest' }, 500) }
 
     const filename = (artifact.title ?? 'bundle').replace(SANITIZE_RE, '').replace(/\s+/g, '_').slice(0, 100) || 'bundle'
-    const archive = archiver('zip', { zlib: { level: 6 } })
+    const { ZipArchive } = await import('archiver') as unknown as {
+      ZipArchive: new (options: { zlib?: { level: number } }) => NodeJS.ReadWriteStream & {
+        append: (source: NodeJS.ReadableStream, data: { name: string }) => void
+        finalize: () => void
+      }
+    }
+    const archive = new ZipArchive({ zlib: { level: 6 } })
     for (const f of manifest.files) {
       archive.append(Readable.from([f.content]), { name: f.path })
     }

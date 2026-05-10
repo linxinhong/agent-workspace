@@ -100,19 +100,19 @@ export function InlineEditPopover({
               onClick={handleReplace}
               className="text-xs px-3 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700"
             >
-              Replace
+              替换
             </button>
             <button
               onClick={handleRetry}
               className="text-xs px-3 py-1.5 rounded border border-gray-300 text-gray-600 hover:bg-gray-100"
             >
-              Retry
+              重试
             </button>
             <button
               onClick={onCancel}
               className="text-xs px-2 py-1.5 text-gray-400 hover:text-gray-600"
             >
-              Cancel
+              取消
             </button>
           </div>
         </>
@@ -134,14 +134,14 @@ export function InlineEditPopover({
               disabled={isGenerating || !instruction.trim()}
               className="text-sm px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {isGenerating ? 'Generating...' : 'Generate'}
+              {isGenerating ? '生成中...' : '生成'}
             </button>
             <button
               onClick={onCancel}
               disabled={isGenerating}
               className="text-sm px-2 py-1 text-gray-400 hover:text-gray-600 disabled:opacity-50"
             >
-              Cancel
+              取消
             </button>
           </div>
           {isGenerating && (

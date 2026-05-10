@@ -29,10 +29,93 @@ export interface ProjectDetail extends Project {
   runCount: number
 }
 
+async function parseErrorResponse(res: Response): Promise<string> {
+  const fallback = `HTTP ${res.status}`
+  const text = await res.text().catch(() => '')
+  if (!text) return fallback
+
+  try {
+    const parsed = JSON.parse(text) as { error?: unknown; message?: unknown }
+    if (typeof parsed.error === 'string') return parsed.error
+    if (typeof parsed.message === 'string') return parsed.message
+  } catch {
+    // Fall through to plain text.
+  }
+
+  return text || fallback
+}
+
+async function request<T>(url: string, init?: RequestInit): Promise<T> {
+  let res: Response
+  try {
+    res = await fetch(url, init)
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : '网络请求失败')
+  }
+
+  if (!res.ok) {
+    throw new Error(await parseErrorResponse(res))
+  }
+
+  if (res.status === 204) {
+    return undefined as T
+  }
+
+  try {
+    return await res.json() as T
+  } catch {
+    throw new Error('响应不是有效的 JSON')
+  }
+}
+
 async function consumeSSE(res: Response, onEvent: (event: RunEvent) => void): Promise<void> {
-  const reader = res.body!.getReader()
+  if (!res.body) throw new Error('响应不包含流数据')
+
+  const reader = res.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
+  let eventName = 'message'
+  let dataLines: string[] = []
+
+  const dispatchEvent = () => {
+    if (dataLines.length === 0) {
+      eventName = 'message'
+      return
+    }
+
+    const data = dataLines.join('\n')
+    const type = eventName as RunEvent['type']
+    dataLines = []
+    eventName = 'message'
+
+    if (!['start', 'delta', 'artifact', 'error', 'done'].includes(type)) return
+
+    try {
+      onEvent({ type, data: JSON.parse(data) })
+    } catch {
+      // Ignore malformed event payloads but keep the stream alive.
+    }
+  }
+
+  const processLine = (line: string) => {
+    const trimmedLine = line.endsWith('\r') ? line.slice(0, -1) : line
+    if (trimmedLine === '') {
+      dispatchEvent()
+      return
+    }
+    if (trimmedLine.startsWith(':')) return
+
+    const separator = trimmedLine.indexOf(':')
+    const field = separator === -1 ? trimmedLine : trimmedLine.slice(0, separator)
+    let value = separator === -1 ? '' : trimmedLine.slice(separator + 1)
+    if (value.startsWith(' ')) value = value.slice(1)
+
+    if (field === 'event') {
+      eventName = value || 'message'
+    } else if (field === 'data') {
+      dataLines.push(value)
+    }
+  }
 
   while (true) {
     const { done, value } = await reader.read()
@@ -41,64 +124,49 @@ async function consumeSSE(res: Response, onEvent: (event: RunEvent) => void): Pr
     buffer += decoder.decode(value, { stream: true })
     const lines = buffer.split('\n')
     buffer = lines.pop() ?? ''
-
-    let currentEvent = ''
     for (const line of lines) {
-      const trimmed = line.trim()
-
-      if (trimmed.startsWith('event:')) {
-        currentEvent = trimmed.slice(6).trim()
-      } else if (trimmed.startsWith('data:')) {
-        const data = trimmed.slice(5).trim()
-        try {
-          onEvent({ type: currentEvent as RunEvent['type'], data: JSON.parse(data) })
-        } catch {
-          // Skip malformed
-        }
-      }
+      processLine(line)
     }
   }
+
+  buffer += decoder.decode()
+  if (buffer) processLine(buffer)
+  dispatchEvent()
 }
 
 export async function fetchSkills(): Promise<SkillBrief[]> {
-  const res = await fetch('/api/skills')
-  return res.json()
+  return request<SkillBrief[]>('/api/skills')
 }
 
 export async function fetchProjects(): Promise<Project[]> {
-  const res = await fetch('/api/projects')
-  return res.json()
+  return request<Project[]>('/api/projects')
 }
 
 export async function createProject(name: string, description?: string): Promise<Project> {
-  const res = await fetch('/api/projects', {
+  return request<Project>('/api/projects', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, description }),
   })
-  return res.json()
 }
 
 export async function fetchProjectDetail(id: string): Promise<ProjectDetail> {
-  const res = await fetch(`/api/projects/${id}`)
-  return res.json()
+  return request<ProjectDetail>(`/api/projects/${id}`)
 }
 
 export async function deleteProject(id: string): Promise<void> {
-  await fetch(`/api/projects/${id}`, { method: 'DELETE' })
+  await request<void>(`/api/projects/${id}`, { method: 'DELETE' })
 }
 
 export async function fetchArtifactSummaries(opts: { limit?: number; projectId?: string } = {}): Promise<ArtifactSummary[]> {
   const params = new URLSearchParams()
   params.set('limit', String(opts.limit ?? 50))
   if (opts.projectId) params.set('projectId', opts.projectId)
-  const res = await fetch(`/api/artifacts?${params}`)
-  return res.json()
+  return request<ArtifactSummary[]>(`/api/artifacts?${params}`)
 }
 
 export async function fetchArtifact(id: string): Promise<Artifact> {
-  const res = await fetch(`/api/artifacts/${id}`)
-  return res.json()
+  return request<Artifact>(`/api/artifacts/${id}`)
 }
 
 export function getArtifactExportUrl(id: string): string {
@@ -106,8 +174,7 @@ export function getArtifactExportUrl(id: string): string {
 }
 
 export async function fetchArtifactVersions(id: string): Promise<Artifact[]> {
-  const res = await fetch(`/api/artifacts/${id}/versions`)
-  return res.json()
+  return request<Artifact[]>(`/api/artifacts/${id}/versions`)
 }
 
 export async function createArtifactVersion(id: string, data: {
@@ -116,43 +183,36 @@ export async function createArtifactVersion(id: string, data: {
   changeNote?: string
   source?: string
 }): Promise<Artifact> {
-  const res = await fetch(`/api/artifacts/${id}/versions`, {
+  return request<Artifact>(`/api/artifacts/${id}/versions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })
-  if (!res.ok) { const err = await res.json(); throw new Error(err.error ?? `HTTP ${res.status}`) }
-  return res.json()
 }
 
 export async function fetchRuns(opts: { limit?: number; projectId?: string } = {}): Promise<RunSummary[]> {
   const params = new URLSearchParams()
   params.set('limit', String(opts.limit ?? 20))
   if (opts.projectId) params.set('projectId', opts.projectId)
-  const res = await fetch(`/api/runs?${params}`)
-  return res.json()
+  return request<RunSummary[]>(`/api/runs?${params}`)
 }
 
 export async function fetchProjectFiles(projectId: string): Promise<WorkspaceFile[]> {
-  const res = await fetch(`/api/projects/${projectId}/files`)
-  return res.json()
+  return request<WorkspaceFile[]>(`/api/projects/${projectId}/files`)
 }
 
 export async function fetchFile(id: string): Promise<WorkspaceFile> {
-  const res = await fetch(`/api/files/${id}`)
-  return res.json()
+  return request<WorkspaceFile>(`/api/files/${id}`)
 }
 
-export async function uploadFile(projectId: string, file: File): Promise<{ id: string }> {
+export async function uploadFile(projectId: string, file: File): Promise<{ id: string } | WorkspaceFile> {
   const form = new FormData()
   form.append('file', file)
-  const res = await fetch(`/api/projects/${projectId}/files`, { method: 'POST', body: form })
-  if (!res.ok) { const err = await res.json(); throw new Error(err.error ?? `HTTP ${res.status}`) }
-  return res.json()
+  return request<{ id: string } | WorkspaceFile>(`/api/projects/${projectId}/files`, { method: 'POST', body: form })
 }
 
 export async function deleteFile(id: string): Promise<void> {
-  await fetch(`/api/files/${id}`, { method: 'DELETE' })
+  await request<void>(`/api/files/${id}`, { method: 'DELETE' })
 }
 
 export async function runAgentStream(input: {
@@ -177,8 +237,7 @@ export async function runAgentStream(input: {
   })
 
   if (!res.ok) {
-    const err = await res.json()
-    throw new Error(err.error ?? `HTTP ${res.status}`)
+    throw new Error(await parseErrorResponse(res))
   }
 
   await consumeSSE(res, input.onEvent)
@@ -198,16 +257,14 @@ export async function refineArtifactStream(input: {
   })
 
   if (!res.ok) {
-    const err = await res.json()
-    throw new Error(err.error ?? `HTTP ${res.status}`)
+    throw new Error(await parseErrorResponse(res))
   }
 
   await consumeSSE(res, input.onEvent)
 }
 
 export async function fetchAgents(): Promise<AgentDescriptor[]> {
-  const res = await fetch('/api/agents')
-  return res.json()
+  return request<AgentDescriptor[]>('/api/agents')
 }
 
 export interface AgentPermissions {
@@ -239,24 +296,19 @@ export interface AgentProfileInfo {
 }
 
 export async function fetchAgentProfiles(): Promise<AgentProfileInfo[]> {
-  const res = await fetch('/api/agent-profiles')
-  return res.json()
+  return request<AgentProfileInfo[]>('/api/agent-profiles')
 }
 
 export async function reloadAgentProfiles(): Promise<{ ok: boolean }> {
-  const res = await fetch('/api/agent-profiles/reload', { method: 'POST' })
-  return res.json()
+  return request<{ ok: boolean }>('/api/agent-profiles/reload', { method: 'POST' })
 }
 
 export async function fetchSkillDetail(id: string): Promise<SkillDetail> {
-  const res = await fetch(`/api/skills/${id}`)
-  if (!res.ok) throw new Error('Skill not found')
-  return res.json()
+  return request<SkillDetail>(`/api/skills/${id}`)
 }
 
 export async function reloadSkills(): Promise<{ count: number }> {
-  const res = await fetch('/api/skills/reload', { method: 'POST' })
-  return res.json()
+  return request<{ count: number }>('/api/skills/reload', { method: 'POST' })
 }
 
 export async function fetchDebugPrompt(params: {
@@ -265,13 +317,11 @@ export async function fetchDebugPrompt(params: {
   projectId?: string
   fileIds?: string[]
 }): Promise<{ messages: Array<{ role: string; content: string }> }> {
-  const res = await fetch('/api/debug/prompt', {
+  return request<{ messages: Array<{ role: string; content: string }> }>('/api/debug/prompt', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
   })
-  if (!res.ok) { const err = await res.json(); throw new Error(err.error ?? `HTTP ${res.status}`) }
-  return res.json()
 }
 
 export interface TemplateBrief {
@@ -310,42 +360,33 @@ export interface RunDetail {
 }
 
 export async function fetchRunDetail(id: string): Promise<RunDetail> {
-  const res = await fetch(`/api/runs/${id}`)
-  if (!res.ok) throw new Error('Run not found')
-  return res.json()
+  return request<RunDetail>(`/api/runs/${id}`)
 }
 
 export async function fetchRunFile(runId: string, name: string): Promise<string> {
   const res = await fetch(`/api/runs/${runId}/files/${encodeURIComponent(name)}`)
-  if (!res.ok) throw new Error('File not found')
+  if (!res.ok) throw new Error(await parseErrorResponse(res))
   return res.text()
 }
 
 export async function cancelRun(id: string): Promise<{ success: boolean }> {
-  const res = await fetch(`/api/runs/${id}/cancel`, { method: 'POST' })
-  if (!res.ok) { const err = await res.json(); throw new Error(err.error ?? `HTTP ${res.status}`) }
-  return res.json()
+  return request<{ success: boolean }>(`/api/runs/${id}/cancel`, { method: 'POST' })
 }
 
 export async function fetchTemplates(): Promise<TemplateBrief[]> {
-  const res = await fetch('/api/templates')
-  return res.json()
+  return request<TemplateBrief[]>('/api/templates')
 }
 
 export async function fetchTemplateDetail(id: string): Promise<ArtifactTemplate> {
-  const res = await fetch(`/api/templates/${id}`)
-  if (!res.ok) throw new Error('Template not found')
-  return res.json()
+  return request<ArtifactTemplate>(`/api/templates/${id}`)
 }
 
 export async function renderTemplate(id: string, variables: Record<string, string>): Promise<{ type: string; title: string; content: string }> {
-  const res = await fetch(`/api/templates/${id}/render`, {
+  return request<{ type: string; title: string; content: string }>(`/api/templates/${id}/render`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ variables }),
   })
-  if (!res.ok) { const err = await res.json(); throw new Error(err.error ?? `HTTP ${res.status}`) }
-  return res.json()
 }
 
 export async function inlineEditArtifact(input: {
@@ -355,7 +396,7 @@ export async function inlineEditArtifact(input: {
   beforeContext?: string
   afterContext?: string
 }): Promise<{ replacement: string }> {
-  const res = await fetch(`/api/artifacts/${input.artifactId}/inline-edit`, {
+  return request<{ replacement: string }>(`/api/artifacts/${input.artifactId}/inline-edit`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -365,9 +406,4 @@ export async function inlineEditArtifact(input: {
       afterContext: input.afterContext,
     }),
   })
-  if (!res.ok) {
-    const text = await res.text()
-    try { const err = JSON.parse(text); throw new Error(err.error ?? `HTTP ${res.status}`) } catch (e) { if (e instanceof Error && e.message !== `HTTP ${res.status}`) throw e; throw new Error(text || `HTTP ${res.status}`) }
-  }
-  return res.json()
 }

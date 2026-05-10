@@ -16,10 +16,10 @@ function formatBytes(bytes: number): string {
 }
 
 const statusConfig: Record<string, { label: string; color: string }> = {
-  completed: { label: 'Completed', color: 'bg-green-100 text-green-700' },
-  error: { label: 'Error', color: 'bg-red-100 text-red-700' },
-  cancelled: { label: 'Cancelled', color: 'bg-yellow-100 text-yellow-700' },
-  timeout: { label: 'Timeout', color: 'bg-orange-100 text-orange-700' },
+  completed: { label: '已完成', color: 'bg-green-100 text-green-700' },
+  error: { label: '错误', color: 'bg-red-100 text-red-700' },
+  cancelled: { label: '已取消', color: 'bg-yellow-100 text-yellow-700' },
+  timeout: { label: '超时', color: 'bg-orange-100 text-orange-700' },
 }
 
 const sourceConfig: Record<string, { label: string; color: string }> = {
@@ -59,17 +59,17 @@ export function RunDetail() {
       <div className="bg-white rounded-xl shadow-2xl w-[680px] max-h-[85vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b">
-          <h3 className="text-sm font-semibold text-gray-800">Run Detail</h3>
+          <h3 className="text-sm font-semibold text-gray-800">运行详情</h3>
           <button onClick={closeRunDetail} className="text-gray-400 hover:text-gray-600 text-lg">&times;</button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           {/* Overview */}
           <div>
-            <div className="text-xs font-medium text-gray-500 mb-2">Overview</div>
+            <div className="text-xs font-medium text-gray-500 mb-2">概览</div>
             <div className="grid grid-cols-2 gap-2">
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-400 w-16">Status</span>
+                <span className="text-xs text-gray-400 w-16">状态</span>
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cfg.color}`}>{cfg.label}</span>
               </div>
               <div className="flex items-center gap-2">
@@ -78,22 +78,22 @@ export function RunDetail() {
                 {run.agentKind === 'cli' && <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600">CLI</span>}
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-400 w-16">Duration</span>
+                <span className="text-xs text-gray-400 w-16">耗时</span>
                 <span className="text-xs text-gray-700">{run.durationMs != null ? formatDuration(run.durationMs) : '-'}</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-400 w-16">Exit</span>
+                <span className="text-xs text-gray-400 w-16">退出码</span>
                 <span className="text-xs text-gray-700">{run.exitCode != null ? run.exitCode : '-'}</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-400 w-16">Artifacts</span>
+                <span className="text-xs text-gray-400 w-16">产物</span>
                 <span className="text-xs text-gray-700">{run.artifacts.length}</span>
               </div>
               {(run.timedOut || run.cancelled) && (
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400 w-16">Flags</span>
-                  {run.timedOut && <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-50 text-orange-600">Timed Out</span>}
-                  {run.cancelled && <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-50 text-yellow-600">Cancelled</span>}
+                  <span className="text-xs text-gray-400 w-16">标记</span>
+                  {run.timedOut && <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-50 text-orange-600">超时</span>}
+                  {run.cancelled && <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-50 text-yellow-600">已取消</span>}
                 </div>
               )}
             </div>
@@ -101,14 +101,14 @@ export function RunDetail() {
 
           {/* Goal */}
           <div>
-            <div className="text-xs font-medium text-gray-500 mb-1">Goal</div>
-            <p className="text-xs text-gray-700 bg-gray-50 rounded p-2">{run.goal ?? '(no goal)'}</p>
+            <div className="text-xs font-medium text-gray-500 mb-1">目标</div>
+            <p className="text-xs text-gray-700 bg-gray-50 rounded p-2">{run.goal ?? '(无目标)'}</p>
           </div>
 
           {/* Command */}
           {run.cwd && (
             <div>
-              <div className="text-xs font-medium text-gray-500 mb-1">Workspace</div>
+              <div className="text-xs font-medium text-gray-500 mb-1">工作目录</div>
               <p className="text-xs text-gray-600 font-mono bg-gray-50 rounded p-2 break-all">{run.cwd}</p>
             </div>
           )}
@@ -116,7 +116,7 @@ export function RunDetail() {
           {/* Materialized Files */}
           {run.materializedFiles.length > 0 && (
             <div>
-              <div className="text-xs font-medium text-gray-500 mb-1">Files</div>
+              <div className="text-xs font-medium text-gray-500 mb-1">文件</div>
               <div className="space-y-1">
                 {run.materializedFiles.map((f) => {
                   const artifactMatch = f.kind === 'artifact'
@@ -150,10 +150,10 @@ export function RunDetail() {
             </div>
           )}
 
-          {/* Log Previews */}
+          {/* Log previews */}
           {(run.stdoutPreview || run.stderrPreview) && (
             <div>
-              <div className="text-xs font-medium text-gray-500 mb-1">Logs</div>
+              <div className="text-xs font-medium text-gray-500 mb-1">日志</div>
               {run.stdoutPreview && (
                 <div className="mb-2">
                   <div className="text-[10px] text-gray-400 mb-0.5">stdout</div>
@@ -172,7 +172,7 @@ export function RunDetail() {
           {/* Artifacts */}
           {run.artifacts.length > 0 && (
             <div>
-              <div className="text-xs font-medium text-gray-500 mb-1">Artifacts</div>
+              <div className="text-xs font-medium text-gray-500 mb-1">产物</div>
               <div className="space-y-1">
                 {run.artifacts.map((a) => {
                   const src = a.source ? sourceConfig[a.source] : null
@@ -182,7 +182,7 @@ export function RunDetail() {
                       onClick={() => { openArtifact(a.id); closeRunDetail() }}
                       className="flex items-center gap-2 w-full text-left px-2 py-1 rounded hover:bg-blue-50 text-xs"
                     >
-                      <span className="text-blue-600">{a.title ?? 'untitled'}</span>
+                      <span className="text-blue-600">{a.title ?? '未命名'}</span>
                       <span className="text-gray-300">{a.type}</span>
                       {a.type === 'bundle' && (
                         <span className="text-[10px] px-1 py-0.5 rounded bg-violet-50 text-violet-600">bundle</span>
