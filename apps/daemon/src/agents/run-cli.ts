@@ -7,7 +7,7 @@ import { materializeWorkspace } from './materialize.js'
 import { parseArtifacts } from '../artifacts/parse-artifact.js'
 import { scanArtifactFiles, scanArtifactBundle } from '../artifacts/scan-artifact-files.js'
 import { BASE_PROMPT } from '../prompts/base-prompt.js'
-import { stripAnsi } from './ansi.js'
+import { stripAnsi, stripRichDecorations } from './ansi.js'
 import { registerActiveRun, unregisterActiveRun } from './active-runs.js'
 
 interface CliRunDeps {
@@ -97,7 +97,7 @@ export async function* runCliAgent(deps: CliRunDeps): AsyncGenerator<AgentEvent>
   try {
     for await (const event of deps.adapter.run(input, controller.signal)) {
       if (event.type === 'stdout') {
-        const cleaned = stripAnsi(event.text)
+        const cleaned = stripRichDecorations(stripAnsi(event.text))
         fullText += cleaned
         appendFileSync(stdoutPath, cleaned, 'utf-8')
         if (fullText.length > 100_000) {

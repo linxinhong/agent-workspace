@@ -1,0 +1,27 @@
+{
+  "id": "pi",
+  "name": "Pi Agent",
+  "kind": "local-cli",
+  "description": "Pi AI coding assistant — print 非交互模式",
+  "command": "pi",
+  "versionArgs": ["--version"],
+  "args": ["--print"],
+  "inputMode": "argument",
+  "outputFormat": "text",
+  "timeoutMs": 180000,
+  "enabled": true,
+  "capabilities": {
+    "streaming": false,
+    "fileEditing": true,
+    "supportsCwd": true,
+    "supportsNonInteractive": true
+  },
+  "permissions": {
+    "readProjectFiles": true,
+    "writeArtifactFiles": true,
+    "writeProjectFiles": true,
+    "networkAccess": true,
+    "executeCommands": true,
+    "requiresApproval": false
+  }
+}

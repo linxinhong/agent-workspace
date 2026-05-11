@@ -1,0 +1,27 @@
+{
+  "id": "hermes",
+  "name": "Hermes Agent",
+  "kind": "local-cli",
+  "description": "Hermes Agent CLI — quiet 单次查询模式",
+  "command": "hermes",
+  "versionArgs": ["--version"],
+  "args": ["chat", "-Q", "-q"],
+  "inputMode": "argument",
+  "outputFormat": "text",
+  "timeoutMs": 180000,
+  "enabled": true,
+  "capabilities": {
+    "streaming": false,
+    "fileEditing": true,
+    "supportsCwd": true,
+    "supportsNonInteractive": true
+  },
+  "permissions": {
+    "readProjectFiles": true,
+    "writeArtifactFiles": true,
+    "writeProjectFiles": true,
+    "networkAccess": true,
+    "executeCommands": true,
+    "requiresApproval": false
+  }
+}
