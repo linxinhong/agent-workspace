@@ -7,10 +7,12 @@ interface Props {
   copied: boolean
   isEditing: boolean
   showRefine: boolean
+  applying?: boolean
   onCopy: () => void
   onDownload: () => void
   onEdit: () => void
   onRefine: () => void
+  onApply?: () => void
   onClose?: () => void
 }
 
@@ -21,10 +23,12 @@ export function ArtifactToolbar({
   copied,
   isEditing,
   showRefine,
+  applying,
   onCopy,
   onDownload,
   onEdit,
   onRefine,
+  onApply,
   onClose,
 }: Props) {
   return (
@@ -49,6 +53,15 @@ export function ArtifactToolbar({
         >
           下载
         </button>
+        {!isEditing && !showRefine && onApply && (
+          <button
+            onClick={onApply}
+            disabled={applying}
+            className="px-2 py-1 text-xs text-emerald-600 hover:text-emerald-800 border border-emerald-200 rounded hover:border-emerald-300 disabled:opacity-50"
+          >
+            {applying ? '应用中...' : '应用到项目'}
+          </button>
+        )}
         {!isEditing && !showRefine && (
           <button
             onClick={onEdit}

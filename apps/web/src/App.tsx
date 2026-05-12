@@ -9,12 +9,14 @@ import { RunHistory } from './components/RunHistory'
 import { ProjectSwitcher } from './components/ProjectSwitcher'
 import { ProjectOverview } from './components/ProjectOverview'
 import { ProjectFiles } from './components/ProjectFiles'
+import { ScheduledJobsPanel } from './components/ScheduledJobsPanel'
 import { SkillDetail } from './components/SkillDetail'
 import { PromptDebugger } from './components/PromptDebugger'
 import { TemplatePicker, TemplateForm } from './components/TemplatePicker'
 import { AgentSelector } from './components/AgentSelector'
 import { ApprovalDialog } from './components/ApprovalDialog'
 import { RunDetail } from './components/RunDetail'
+import { NotificationBell } from './components/NotificationBell'
 
 const LEFT_WIDTH_KEY = 'agent-workspace:leftPanelWidth'
 const RIGHT_WIDTH_KEY = 'agent-workspace:rightPanelWidth'
@@ -85,6 +87,7 @@ function AppInner() {
     <aside className={`${isNarrow ? 'w-full' : ''} border-r flex flex-col bg-white shrink-0 min-h-0`} style={isNarrow ? undefined : { width: leftWidth }}>
       <ProjectOverview />
       <ProjectFiles />
+      <ScheduledJobsPanel />
       <TemplatePicker />
       <div className="h-9 border-b border-t flex items-center px-4">
         <span className="text-xs font-medium text-gray-500">最近产物</span>
@@ -119,6 +122,8 @@ function AppInner() {
     <div className="h-screen flex flex-col bg-gray-50">
       <header className="h-14 border-b bg-white flex items-center px-6 shrink-0">
         <ProjectSwitcher />
+        <div className="flex-1" />
+        <NotificationBell />
       </header>
       <main className="flex-1 overflow-hidden">
         {isNarrow ? (

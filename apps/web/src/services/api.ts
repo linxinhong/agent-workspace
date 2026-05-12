@@ -1,4 +1,4 @@
-import type { AgentDescriptor, Artifact, ArtifactType, ArtifactSummary, ArtifactTemplate, Project, SkillDetail, SkillWarning, WorkspaceFile } from '@agent-workspace/contracts'
+import type { AgentDescriptor, Artifact, ArtifactType, ArtifactSummary, ArtifactTemplate, DeliveryAttempt, Notification, Project, ScheduledJob, ScheduledJobExecution, SkillDetail, SkillWarning, WorkspaceFile } from '@agent-workspace/contracts'
 
 export interface SkillBrief {
   id: string
@@ -307,6 +307,57 @@ export async function fetchSkillDetail(id: string): Promise<SkillDetail> {
   return request<SkillDetail>(`/api/skills/${id}`)
 }
 
+export async function applyArtifactToProject(
+  artifactId: string,
+  projectId: string,
+  strategy?: 'rename' | 'overwrite',
+): Promise<any> {
+  return request(`/api/artifacts/${artifactId}/apply`, {
+    method: 'POST',
+    body: JSON.stringify({ projectId, strategy: strategy ?? 'rename' }),
+  })
+}
+
+// Scheduled Jobs
+export async function fetchScheduledJobs(projectId?: string): Promise<ScheduledJob[]> {
+  const qs = projectId ? `?projectId=${projectId}` : ''
+  return request<ScheduledJob[]>(`/api/scheduled-jobs${qs}`)
+}
+
+export async function createScheduledJob(data: Partial<ScheduledJob> & { approval?: { approved: boolean; permissionsHash: string } }): Promise<ScheduledJob> {
+  return request<ScheduledJob>('/api/scheduled-jobs', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function patchScheduledJob(id: string, data: Partial<ScheduledJob>): Promise<ScheduledJob> {
+  return request<ScheduledJob>(`/api/scheduled-jobs/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function deleteScheduledJob(id: string): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(`/api/scheduled-jobs/${id}`, { method: 'DELETE' })
+}
+
+export async function enableScheduledJob(id: string): Promise<ScheduledJob> {
+  return request<ScheduledJob>(`/api/scheduled-jobs/${id}/enable`, { method: 'POST' })
+}
+
+export async function disableScheduledJob(id: string): Promise<ScheduledJob> {
+  return request<ScheduledJob>(`/api/scheduled-jobs/${id}/disable`, { method: 'POST' })
+}
+
+export async function runNowScheduledJob(id: string): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(`/api/scheduled-jobs/${id}/run-now`, { method: 'POST' })
+}
+
+export async function fetchJobExecutions(jobId: string): Promise<ScheduledJobExecution[]> {
+  return request<ScheduledJobExecution[]>(`/api/scheduled-jobs/${jobId}/executions`)
+}
+
 export async function reloadSkills(): Promise<{ count: number }> {
   return request<{ count: number }>('/api/skills/reload', { method: 'POST' })
 }
@@ -406,4 +457,76 @@ export async function inlineEditArtifact(input: {
       afterContext: input.afterContext,
     }),
   })
+}
+
+export interface SchedulerStatusInfo {
+  running: boolean
+  tickIntervalMs: number
+  lastTickAt: string | null
+  activeExecutionCount: number
+}
+
+export async function fetchSchedulerStatus(): Promise<SchedulerStatusInfo> {
+  return request<SchedulerStatusInfo>('/api/scheduler/status')
+}
+
+export interface CronValidationResult {
+  valid: boolean
+  error?: string
+  nextRuns?: string[]
+}
+
+export async function validateCron(cron: string): Promise<CronValidationResult> {
+  return request<CronValidationResult>('/api/scheduler/validate-cron', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cron }),
+  })
+}
+
+export async function reapproveScheduledJob(id: string, approval: { approved: boolean; permissionsHash: string }): Promise<ScheduledJob> {
+  return request<ScheduledJob>(`/api/scheduled-jobs/${id}/reapprove`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ approval }),
+  })
+}
+
+// Notifications
+export async function fetchNotifications(opts: { projectId?: string; unreadOnly?: boolean; limit?: number } = {}): Promise<Notification[]> {
+  const params = new URLSearchParams()
+  if (opts.projectId) params.set('projectId', opts.projectId)
+  if (opts.unreadOnly) params.set('unreadOnly', 'true')
+  params.set('limit', String(opts.limit ?? 50))
+  return request<Notification[]>(`/api/notifications?${params}`)
+}
+
+export async function fetchUnreadNotificationCount(projectId?: string): Promise<{ count: number }> {
+  const qs = projectId ? `?projectId=${projectId}` : ''
+  return request<{ count: number }>(`/api/notifications/unread-count${qs}`)
+}
+
+export async function markNotificationRead(id: string): Promise<Notification> {
+  return request<Notification>(`/api/notifications/${id}/read`, { method: 'PATCH' })
+}
+
+export async function markAllNotificationsRead(projectId?: string): Promise<{ ok: boolean; count: number }> {
+  return request<{ ok: boolean; count: number }>('/api/notifications/mark-all-read', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ projectId }),
+  })
+}
+
+export async function deleteNotification(id: string): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(`/api/notifications/${id}`, { method: 'DELETE' })
+}
+
+// Delivery Attempts
+export async function fetchDeliveryAttempts(opts: { jobId?: string; executionId?: string; limit?: number } = {}): Promise<DeliveryAttempt[]> {
+  const params = new URLSearchParams()
+  if (opts.jobId) params.set('jobId', opts.jobId)
+  if (opts.executionId) params.set('executionId', opts.executionId)
+  params.set('limit', String(opts.limit ?? 20))
+  return request<DeliveryAttempt[]>(`/api/delivery-attempts?${params}`)
 }

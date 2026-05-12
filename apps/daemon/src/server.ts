@@ -13,6 +13,10 @@ import { filesRoute } from './routes/files'
 import { debugRoute } from './routes/debug'
 import { templatesRoute } from './routes/templates'
 import { agentsRoute } from './routes/agents'
+import { scheduledJobsRoute } from './routes/scheduled-jobs'
+import { notificationsRoute } from './routes/notifications'
+import { SchedulerService } from './scheduler/scheduler-service'
+import { detectCliAgents } from './agents/registry'
 
 const app = new Hono()
 
@@ -27,6 +31,12 @@ app.route('/', runsRoute)
 app.route('/', debugRoute)
 app.route('/', templatesRoute)
 app.route('/', agentsRoute)
+app.route('/', scheduledJobsRoute)
+app.route('/', notificationsRoute)
+
+// Scheduler
+export const scheduler = new SchedulerService()
+void detectCliAgents().then(() => scheduler.start())
 
 app.use('/*', serveStatic({ root: '../web/dist' }))
 

@@ -1,5 +1,5 @@
 import { createContext, useContext, useReducer, type ReactNode } from 'react'
-import type { AgentDescriptor, Artifact, ArtifactSummary, ArtifactTemplate, Project, SkillDetail, WorkspaceFile } from '@agent-workspace/contracts'
+import type { AgentDescriptor, Artifact, ArtifactSummary, ArtifactTemplate, Notification, Project, SkillDetail, WorkspaceFile } from '@agent-workspace/contracts'
 import {
   fetchSkills, fetchArtifact, fetchArtifactSummaries, fetchRuns, fetchArtifactVersions,
   runAgentStream, refineArtifactStream, fetchProjects, createProject, deleteProject, fetchProjectDetail,
@@ -7,6 +7,10 @@ import {
   fetchTemplates as fetchTemplatesApi, fetchTemplateDetail, renderTemplate,
   fetchAgents, fetchRunDetail, cancelRun as cancelRunApi,
   fetchAgentProfiles,
+  fetchNotifications as fetchNotificationsApi,
+  fetchUnreadNotificationCount,
+  markNotificationRead as markNotificationReadApi,
+  markAllNotificationsRead as markAllNotificationsReadApi,
   type RunEvent, type RunSummary, type RunDetail, type SkillBrief, type ProjectDetail, type TemplateBrief, type AgentProfileInfo, type AgentPermissions,
 } from '../services/api'
 
@@ -41,6 +45,8 @@ interface State {
   activeRunDetail: RunDetail | null
   currentRunId: string | null
   pendingApproval: { agentName: string; permissions: AgentPermissions; permissionsHash: string } | null
+  notifications: Notification[]
+  unreadNotificationCount: number
 }
 
 type Action =
@@ -78,6 +84,10 @@ type Action =
   | { type: 'SET_CURRENT_RUN_ID'; runId: string | null }
   | { type: 'SHOW_APPROVAL'; info: { agentName: string; permissions: AgentPermissions; permissionsHash: string } }
   | { type: 'CLEAR_APPROVAL' }
+  | { type: 'SET_NOTIFICATIONS'; notifications: Notification[] }
+  | { type: 'SET_UNREAD_COUNT'; count: number }
+  | { type: 'MARK_NOTIFICATION_READ'; id: string }
+  | { type: 'MARK_ALL_NOTIFICATIONS_READ' }
 
 const initialState: State = {
   skills: [], selectedSkillId: null, goal: '', messages: [], artifacts: [],
@@ -96,6 +106,8 @@ const initialState: State = {
   activeRunDetail: null,
   currentRunId: null,
   pendingApproval: null,
+  notifications: [],
+  unreadNotificationCount: 0,
 }
 
 function reducer(state: State, action: Action): State {
@@ -151,6 +163,18 @@ function reducer(state: State, action: Action): State {
     case 'SET_CURRENT_RUN_ID': return { ...state, currentRunId: action.runId }
     case 'SHOW_APPROVAL': return { ...state, pendingApproval: action.info }
     case 'CLEAR_APPROVAL': return { ...state, pendingApproval: null }
+    case 'SET_NOTIFICATIONS': return { ...state, notifications: action.notifications }
+    case 'SET_UNREAD_COUNT': return { ...state, unreadNotificationCount: action.count }
+    case 'MARK_NOTIFICATION_READ': return {
+      ...state,
+      notifications: state.notifications.map(n => n.id === action.id ? { ...n, readAt: new Date().toISOString() } : n),
+      unreadNotificationCount: Math.max(0, state.unreadNotificationCount - 1),
+    }
+    case 'MARK_ALL_NOTIFICATIONS_READ': return {
+      ...state,
+      notifications: state.notifications.map(n => n.readAt ? n : { ...n, readAt: new Date().toISOString() }),
+      unreadNotificationCount: 0,
+    }
   }
 }
 
@@ -183,6 +207,10 @@ interface WorkspaceContextValue {
   cancelCurrentRun: () => Promise<void>
   confirmApproval: () => void
   cancelApproval: () => void
+  loadNotifications: () => Promise<void>
+  refreshUnreadCount: () => Promise<void>
+  markNotificationRead: (id: string) => Promise<void>
+  markAllNotificationsRead: () => Promise<void>
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null)
@@ -476,6 +504,28 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'CLEAR_APPROVAL' })
   }
 
+  const loadNotifications = async () => {
+    const notifications = await fetchNotificationsApi({ projectId: state.currentProjectId ?? undefined })
+    dispatch({ type: 'SET_NOTIFICATIONS', notifications })
+  }
+
+  const refreshUnreadCount = async () => {
+    try {
+      const { count } = await fetchUnreadNotificationCount(state.currentProjectId ?? undefined)
+      dispatch({ type: 'SET_UNREAD_COUNT', count })
+    } catch { /* ignore */ }
+  }
+
+  const doMarkNotificationRead = async (id: string) => {
+    dispatch({ type: 'MARK_NOTIFICATION_READ', id })
+    try { await markNotificationReadApi(id) } catch { /* ignore */ }
+  }
+
+  const doMarkAllNotificationsRead = async () => {
+    dispatch({ type: 'MARK_ALL_NOTIFICATIONS_READ' })
+    try { await markAllNotificationsReadApi(state.currentProjectId ?? undefined) } catch { /* ignore */ }
+  }
+
   return (
     <WorkspaceContext.Provider value={{
       state, dispatch, loadSkills, loadArtifactHistory, loadRunHistory,
@@ -487,6 +537,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       loadAgentProfiles: loadAgentProfilesFn,
       openRunDetail, closeRunDetail, cancelCurrentRun,
       confirmApproval, cancelApproval,
+      loadNotifications, refreshUnreadCount,
+      markNotificationRead: doMarkNotificationRead,
+      markAllNotificationsRead: doMarkAllNotificationsRead,
     }}>
       {children}
     </WorkspaceContext.Provider>

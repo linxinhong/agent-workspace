@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useWorkspace } from '../context/WorkspaceContext'
 import { copyToClipboard, downloadArtifact } from '../utils/artifact-export'
-import { createArtifactVersion, fetchArtifactVersions } from '../services/api'
+import { applyArtifactToProject, createArtifactVersion, fetchArtifactVersions } from '../services/api'
 import { ArtifactEditor } from './artifact/ArtifactEditor'
 import { ArtifactRefineBox } from './artifact/ArtifactRefineBox'
 import { ArtifactToolbar } from './artifact/ArtifactToolbar'
@@ -9,13 +9,14 @@ import { ArtifactVersionBar } from './artifact/ArtifactVersionBar'
 import { ArtifactViewer } from './artifact/ArtifactViewer'
 
 export function ArtifactPreview() {
-  const { state, dispatch, refineArtifact, openArtifact: rawOpenArtifact, loadArtifactHistory } = useWorkspace()
+  const { state, dispatch, refineArtifact, openArtifact: rawOpenArtifact, loadArtifactHistory, loadProjectFiles } = useWorkspace()
   const [activeIndex, setActiveIndex] = useState(0)
   const [showRefine, setShowRefine] = useState(false)
   const [refineInput, setRefineInput] = useState('')
   const [copied, setCopied] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editorDirty, setEditorDirty] = useState(false)
+  const [applying, setApplying] = useState(false)
 
   const current = state.activeArtifact
     ?? (state.artifacts.length > 0 ? state.artifacts[activeIndex] ?? state.artifacts[0] : null)
@@ -63,6 +64,19 @@ export function ArtifactPreview() {
     setShowRefine(false)
   }
 
+  const handleApply = async () => {
+    if (!state.currentProjectId || applying) return
+    setApplying(true)
+    try {
+      await applyArtifactToProject(current.id, state.currentProjectId)
+      await loadProjectFiles()
+    } catch (err) {
+      dispatch({ type: 'SET_ERROR', error: err instanceof Error ? err.message : 'Apply failed' })
+    } finally {
+      setApplying(false)
+    }
+  }
+
   const handleSaveVersion = async (data: {
     content: string
     title?: string
@@ -96,10 +110,12 @@ export function ArtifactPreview() {
         copied={copied}
         isEditing={isEditing}
         showRefine={showRefine}
+        applying={applying}
         onCopy={handleCopy}
         onDownload={() => downloadArtifact(current)}
         onEdit={() => { setIsEditing(true); setEditorDirty(false); setShowRefine(false) }}
         onRefine={() => setShowRefine(true)}
+        onApply={state.currentProjectId ? handleApply : undefined}
         onClose={state.activeArtifact ? () => {
           if (editorDirty && !window.confirm('有未保存的修改，确认关闭？')) return
           setIsEditing(false)

@@ -54,6 +54,12 @@ export function ProjectFiles() {
               className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
             />
             <span className="text-xs text-gray-700 truncate flex-1">{f.name}</span>
+            {f.source === 'artifact' && (
+              <span className="text-[10px] px-1 py-0.5 rounded bg-blue-50 text-blue-600">artifact</span>
+            )}
+            {f.source === 'bundle' && (
+              <span className="text-[10px] px-1 py-0.5 rounded bg-purple-50 text-purple-600">bundle</span>
+            )}
             <button onClick={() => handleDelete(f.id)} className="text-xs text-red-400 hover:text-red-600">&times;</button>
           </div>
         ))}

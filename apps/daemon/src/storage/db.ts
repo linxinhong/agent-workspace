@@ -72,6 +72,66 @@ const INIT_SQL = `
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS scheduled_jobs (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    status TEXT NOT NULL,
+    schedule_type TEXT NOT NULL,
+    run_at TEXT,
+    interval_seconds INTEGER,
+    cron TEXT,
+    goal TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    skill_id TEXT,
+    file_ids TEXT,
+    output_mode TEXT NOT NULL,
+    permissions_snapshot TEXT,
+    permissions_hash TEXT,
+    consecutive_failures INTEGER DEFAULT 0,
+    last_run_at TEXT,
+    next_run_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS scheduled_job_executions (
+    id TEXT PRIMARY KEY,
+    job_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    run_id TEXT,
+    goal_id TEXT,
+    artifact_ids TEXT,
+    status TEXT NOT NULL,
+    scheduled_at TEXT NOT NULL,
+    started_at TEXT,
+    ended_at TEXT,
+    duration_ms INTEGER,
+    error TEXT,
+    created_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS notifications (
+    id TEXT PRIMARY KEY,
+    project_id TEXT,
+    type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    message TEXT,
+    read_at TEXT,
+    metadata TEXT,
+    created_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS delivery_attempts (
+    id TEXT PRIMARY KEY,
+    project_id TEXT,
+    job_id TEXT,
+    execution_id TEXT,
+    type TEXT NOT NULL,
+    status TEXT NOT NULL,
+    target TEXT,
+    status_code INTEGER,
+    error TEXT,
+    created_at TEXT NOT NULL
+  );
 `
 
 sqlite.exec(INIT_SQL)
@@ -101,6 +161,10 @@ const migrations = [
   `ALTER TABLE runs ADD COLUMN permissions_hash TEXT`,
   `ALTER TABLE artifacts ADD COLUMN source TEXT`,
   `ALTER TABLE artifacts ADD COLUMN source_path TEXT`,
+  `ALTER TABLE files ADD COLUMN source TEXT`,
+  `ALTER TABLE files ADD COLUMN artifact_id TEXT`,
+  `ALTER TABLE scheduled_jobs ADD COLUMN missed_run_policy TEXT DEFAULT 'skip'`,
+  `ALTER TABLE scheduled_jobs ADD COLUMN delivery TEXT`,
 ]
 
 for (const sql of migrations) {
